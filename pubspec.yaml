@@ -1,0 +1,23 @@
+name: dxtr_card_scan
+description: OCR-engine-agnostic Flutter card capture UI and geometry foundation for Rust-backed preprocessing.
+version: 0.1.0-dev.1
+homepage: https://github.com/dexter-cnx/dxtr_card_scan
+repository: https://github.com/dexter-cnx/dxtr_card_scan
+issue_tracker: https://github.com/dexter-cnx/dxtr_card_scan/issues
+
+publish_to: none
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
