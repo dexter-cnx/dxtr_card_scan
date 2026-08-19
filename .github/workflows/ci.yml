@@ -12,7 +12,7 @@ concurrency:
 jobs:
   fast-gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -31,3 +31,8 @@ jobs:
       - name: Analyze example
         working-directory: example
         run: flutter analyze lib
+      - name: Scaffold example host platforms
+        run: bash tool/bootstrap_example_platforms.sh
+      - name: Build Android example
+        working-directory: example
+        run: flutter build apk --debug
