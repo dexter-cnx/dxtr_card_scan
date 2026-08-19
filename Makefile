@@ -1,4 +1,4 @@
-.PHONY: get format format-check analyze test example-get example-analyze ci
+.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android ci
 
 get:
 	flutter pub get
@@ -20,5 +20,11 @@ example-get:
 
 example-analyze: example-get
 	cd example && flutter analyze lib
+
+example-platforms:
+	bash tool/bootstrap_example_platforms.sh
+
+example-build-android: example-get example-platforms
+	cd example && flutter build apk --debug
 
 ci: get format-check analyze test example-analyze
