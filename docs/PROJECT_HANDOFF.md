@@ -20,7 +20,7 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 
 ## Current milestone
 
-### v0.1 Capture foundation — implementation complete, awaiting CI/device validation
+### v0.1 Capture foundation — automated gates green, awaiting physical-device validation
 
 Branch: `agent/v0.1-capture-foundation`
 PR: #2
@@ -37,24 +37,48 @@ Implemented:
 - explicit `CapturedImageTransform` for 0/90/180/270 degree rotation and horizontal mirroring
 - geometry unit tests including rotation and mirroring
 - real-camera example source using Flutter's official `camera` plugin
-- GitHub Actions fast gate for package analyze/test and example analyze
-- Makefile development commands
+- generated-host bootstrap script for Android/iOS example platforms
+- GitHub Actions fast gate for package analyze/test, example analyze, host scaffolding, and Android debug APK build
+- Makefile development/build commands
 - architecture, roadmap, walkthrough, and handoff docs
 
-Automated validation still required before merge:
-- observe GitHub Actions results on PR #2
-- fix any analyzer/test failures reported by CI
+Automated validation status:
+- package dependencies: PASS
+- package analyze: PASS
+- package unit tests: PASS
+- example dependencies: PASS
+- example analyze: PASS
+- Android/iOS host scaffolding generation: PASS
+- Android example `flutter build apk --debug`: PASS
+- latest successful workflow run: CI #6 / run 32208833946
 
-Manual validation gate after CI is green:
-- generate/complete example platform scaffolding if needed
-- run example on at least one physical Android or iOS device
-- verify preview fills the intended capture surface
-- verify ID-1 frame alignment in portrait
-- rotate device and verify orientation behavior
-- capture a card and record raw file pixel dimensions/orientation
-- confirm frame-to-image ROI against the captured file
+## Manual validation gate — CURRENT STOP POINT
 
-Stop before v0.2 implementation if v0.1 device geometry has not been validated. The Rust processor depends on this ROI contract.
+Do not begin v0.2 Rust processing until this gate is complete because the Rust ROI contract depends on real camera orientation behavior.
+
+From the repository root:
+
+```sh
+git checkout agent/v0.1-capture-foundation
+flutter pub get
+make example-platforms
+cd example
+flutter pub get
+flutter devices
+flutter run -d <physical-device-id>
+```
+
+Validate on at least one physical Android or iOS device:
+1. Camera opens without permission/lifecycle errors.
+2. Back-camera preview is visible and usable.
+3. White ID-1 frame is centered and sized sensibly in portrait.
+4. Put a physical card inside the frame and capture it.
+5. Captured image is produced successfully.
+6. Rotate the device and report whether the preview/frame remains correctly oriented.
+7. Report device/platform plus whether preview appears cropped, stretched, letterboxed, mirrored, or rotated incorrectly.
+8. If possible, report captured JPEG pixel dimensions and whether the JPEG itself is portrait or landscape when inspected outside the app.
+
+If any geometry/orientation issue appears, fix v0.1 before merge. If this gate passes, mark PR #2 ready/merge and proceed to v0.2 Rust processor.
 
 ## Next milestone: v0.2 Rust processor
 
@@ -82,4 +106,4 @@ Do not introduce ML/AI detection in v0.2 unless classical CV proves insufficient
 
 ## Documentation policy
 
-Update both `docs/CODE_WALKTHROUGH.md` and this handoff whenever a material PR changes architecture, public API, native processing, platform support, or milestone status.
+Update both `docs/CODE_WALKTHROUGH.md` and this handoff whenever a material PR changes architecture, public API, native processing, platform support, milestone status, or validation state.
