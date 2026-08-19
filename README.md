@@ -1,14 +1,14 @@
 # dxtr_card_scan
 
-OCR-engine-agnostic Flutter card capture and preprocessing toolkit backed by a planned Rust processing core.
+OCR-engine-agnostic Flutter card capture and preprocessing toolkit with a Rust processing core planned for v0.2.
 
 ## Architecture
 
-- Flutter owns camera lifecycle, preview UI, capture frame customization, and preview/image geometry.
+- Flutter owns camera lifecycle, preview UI, capture-frame customization, and preview/image geometry.
 - Rust owns card detection, perspective correction, crop, enhancement, resize, and encoding.
 - OCR remains pluggable and outside the core package.
 
-## v0.1 capture foundation
+## Capture foundation
 
 ```dart
 final controller = CardCaptureController();
@@ -21,6 +21,29 @@ CardCaptureView(
 );
 ```
 
-A fully custom frame can be supplied through `frameBuilder`. The geometry layer maps the visible preview region back into captured-image coordinates instead of assuming preview pixels match sensor pixels.
+A fully custom frame can be supplied through `frameBuilder`.
+
+The geometry layer does not assume preview pixels match captured-image pixels. It accounts for `BoxFit.cover`, sensor/captured-image rotation, and horizontal preview mirroring before producing a normalized raw-image ROI for the future Rust processor.
+
+```dart
+final geometry = PreviewGeometry(
+  viewportSize: viewportSize,
+  imageSize: rawImageSize,
+  transform: const CapturedImageTransform(
+    quarterTurnsClockwise: 1,
+    mirrored: false,
+  ),
+);
+
+final roi = geometry.viewportRectToNormalizedImage(frameRect);
+```
+
+## Development
+
+```sh
+make ci
+```
+
+The `example/` app uses Flutter's official `camera` plugin and is intended for the first real-device capture validation.
 
 See `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/CODE_WALKTHROUGH.md`, and `docs/PROJECT_HANDOFF.md`.

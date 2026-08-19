@@ -14,30 +14,47 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 2. Do not let Rust own camera lifecycle or capture UI.
 3. Do not crop captured images using raw Flutter preview coordinates.
 4. Normalize preview/frame geometry before crossing the processing boundary.
-5. Grayscale and hard thresholding are optional and should not be aggressive defaults.
-6. Keep future `CardTemplate` and named OCR regions compatible with the normalized-coordinate model.
+5. Camera orientation/mirroring must be explicit; do not assume the captured file is already orientation-normalized.
+6. Grayscale and hard thresholding are optional and should not be aggressive defaults.
+7. Keep future `CardTemplate` and named OCR regions compatible with the normalized-coordinate model.
 
 ## Current milestone
 
-### v0.1 Capture foundation
+### v0.1 Capture foundation — implementation complete, awaiting CI/device validation
 
-Implemented on branch `agent/v0.1-capture-foundation`:
+Branch: `agent/v0.1-capture-foundation`
+PR: #2
+
+Implemented:
 - Flutter package scaffold
 - `NormalizedRect`
 - ID-1 and configurable `CaptureFrame`
 - default `CaptureFrameStyle`
 - fully custom `frameBuilder`
 - camera-plugin-agnostic preview builder
-- manual `CardCaptureController`
+- manual `CardCaptureController` with explicit lifecycle
 - `BoxFit.cover` preview-to-captured-image geometry mapper
-- initial geometry tests
+- explicit `CapturedImageTransform` for 0/90/180/270 degree rotation and horizontal mirroring
+- geometry unit tests including rotation and mirroring
+- real-camera example source using Flutter's official `camera` plugin
+- GitHub Actions fast gate for package analyze/test and example analyze
+- Makefile development commands
 - architecture, roadmap, walkthrough, and handoff docs
 
-Still expected before v0.1 is considered complete:
-- example app using a real Flutter camera plugin
-- analyze/test CI
-- validation on portrait/landscape and at least one real device
-- explicit rotation/mirroring geometry contract
+Automated validation still required before merge:
+- observe GitHub Actions results on PR #2
+- fix any analyzer/test failures reported by CI
+
+Manual validation gate after CI is green:
+- generate/complete example platform scaffolding if needed
+- run example on at least one physical Android or iOS device
+- verify preview fills the intended capture surface
+- verify ID-1 frame alignment in portrait
+- rotate device and verify orientation behavior
+- capture a card and record raw file pixel dimensions/orientation
+- confirm frame-to-image ROI against the captured file
+
+Stop before v0.2 implementation if v0.1 device geometry has not been validated. The Rust processor depends on this ROI contract.
 
 ## Next milestone: v0.2 Rust processor
 

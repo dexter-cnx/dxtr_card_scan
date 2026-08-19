@@ -6,11 +6,13 @@
 - [x] customizable capture frame
 - [x] ID-1 aspect-ratio preset
 - [x] normalized frame geometry
-- [x] BoxFit.cover preview-to-image mapping
+- [x] `BoxFit.cover` preview-to-image mapping
+- [x] explicit captured-image rotation/mirroring contract
 - [x] manual capture controller abstraction
 - [x] geometry unit tests
-- [ ] example application with a real camera plugin
-- [ ] CI/analyze/test gate
+- [x] real-camera example source
+- [x] CI analyze/test gate
+- [ ] physical-device preview/capture geometry validation
 
 ## 0.2 Rust processor
 - Rust crate and FFI boundary
@@ -42,5 +44,5 @@
 - stable public API
 - Android/iOS/macOS support
 - benchmarks
-- example app
+- full example app
 - package documentation
