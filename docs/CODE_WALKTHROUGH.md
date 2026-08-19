@@ -36,13 +36,22 @@ Defines the default white frame, border width, corner radius, and dark outside o
 `CardCaptureView` composes a host-provided camera preview with the frame overlay. It deliberately does not import a camera plugin. It attaches the caller's capture delegate to `CardCaptureController` for the lifetime of the widget and detaches it when the view changes or disposes.
 
 ### `src/capture/card_capture_controller.dart`
-`CardCaptureController` provides manual capture orchestration without owning camera hardware. It now has an explicit `dispose` lifecycle and rejects capture/attach operations after disposal.
+`CardCaptureController` provides manual capture orchestration without owning camera hardware. It has an explicit `dispose` lifecycle and rejects capture/attach operations after disposal.
 
 ## Example
 
 `example/lib/main.dart` uses Flutter's official `camera` plugin to select a back camera, initialize a real preview, render the ID-1 frame, and trigger a still capture through `CardCaptureController`.
 
-The example intentionally stops after image acquisition in v0.1. Rust preprocessing begins in v0.2.
+The repository intentionally does not commit generated Android/iOS host folders. `tool/bootstrap_example_platforms.sh` creates fresh host scaffolding using the installed Flutter SDK, copies Android/iOS hosts into `example/`, and injects the iOS `NSCameraUsageDescription` entry. Generated host folders are ignored by git.
+
+Useful commands:
+
+```sh
+make example-platforms
+make example-build-android
+```
+
+The example intentionally stops after image acquisition in v0.1. Rust preprocessing begins only after real-device geometry validation.
 
 ## Automated validation
 
@@ -51,8 +60,19 @@ The example intentionally stops after image acquisition in v0.1. Rust preprocess
 - `BoxFit.cover` center-crop mapping test
 - clockwise rotation inverse-mapping test
 - horizontal mirror inverse-mapping test
-- package analyze/test GitHub Actions gate
+- package analyze GitHub Actions gate
+- package unit-test GitHub Actions gate
 - example dependency/analyze GitHub Actions gate
+- Android/iOS host-scaffolding generation gate
+- Android debug APK build gate
+
+CI run `32208833946` completed all of the above successfully before the final documentation-only handoff updates.
+
+## Manual validation boundary
+
+The remaining uncertainty is platform camera behavior, not Dart compilation. A physical device must confirm how preview orientation and the captured JPEG orientation relate on Android/iOS. That observation decides the concrete `CapturedImageTransform` values supplied to the future processor.
+
+Do not hide this behavior behind heuristics before device evidence exists.
 
 ## Next walkthrough section
 
