@@ -8,3 +8,5 @@ coverage/
 *.iml
 .DS_Store
 rust/target/
+example/android/
+example/ios/
