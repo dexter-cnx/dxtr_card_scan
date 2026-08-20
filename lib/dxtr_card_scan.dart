@@ -1,5 +1,6 @@
 library dxtr_card_scan;
 
+export 'src/capture/capture_orientation_policy.dart';
 export 'src/capture/card_capture_controller.dart';
 export 'src/capture/card_capture_view.dart';
 export 'src/crop/image_crop_selection.dart';
