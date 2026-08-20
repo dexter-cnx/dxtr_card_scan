@@ -13,4 +13,31 @@ class CaptureFrameStyle {
   final double borderWidth;
   final double cornerRadius;
   final Color overlayColor;
+
+  CaptureFrameStyle copyWith({
+    Color? borderColor,
+    double? borderWidth,
+    double? cornerRadius,
+    Color? overlayColor,
+  }) {
+    return CaptureFrameStyle(
+      borderColor: borderColor ?? this.borderColor,
+      borderWidth: borderWidth ?? this.borderWidth,
+      cornerRadius: cornerRadius ?? this.cornerRadius,
+      overlayColor: overlayColor ?? this.overlayColor,
+    );
+  }
+
+  static CaptureFrameStyle lerp(
+    CaptureFrameStyle a,
+    CaptureFrameStyle b,
+    double t,
+  ) {
+    return CaptureFrameStyle(
+      borderColor: Color.lerp(a.borderColor, b.borderColor, t)!,
+      borderWidth: a.borderWidth + (b.borderWidth - a.borderWidth) * t,
+      cornerRadius: a.cornerRadius + (b.cornerRadius - a.cornerRadius) * t,
+      overlayColor: Color.lerp(a.overlayColor, b.overlayColor, t)!,
+    );
+  }
 }
