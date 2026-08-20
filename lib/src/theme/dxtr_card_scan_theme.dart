@@ -26,10 +26,10 @@ class DxtrCardScanTheme extends ThemeExtension<DxtrCardScanTheme> {
 
   @override
   DxtrCardScanTheme lerp(
-    covariant ThemeExtension<DxtrCardScanTheme>? other,
+    covariant DxtrCardScanTheme? other,
     double t,
   ) {
-    if (other is! DxtrCardScanTheme) return this;
+    if (other == null) return this;
     return DxtrCardScanTheme(
       captureFrameStyle: CaptureFrameStyle.lerp(
         captureFrameStyle,
