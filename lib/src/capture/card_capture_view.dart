@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
+import '../theme/dxtr_card_scan_theme.dart';
 import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 
@@ -20,7 +21,7 @@ class CardCaptureView extends StatefulWidget {
     required this.previewBuilder,
     required this.onCapture,
     this.frame = const CaptureFrame.id1(),
-    this.frameStyle = const CaptureFrameStyle(),
+    this.frameStyle,
     this.frameBuilder,
     this.orientationPolicy = CaptureOrientationPolicy.any,
     this.orientationMismatchBuilder,
@@ -31,7 +32,12 @@ class CardCaptureView extends StatefulWidget {
   final CardPreviewBuilder previewBuilder;
   final CardCaptureDelegate onCapture;
   final CaptureFrame frame;
-  final CaptureFrameStyle frameStyle;
+
+  /// Optional per-widget visual override.
+  ///
+  /// When null, [DxtrCardScanTheme.captureFrameStyle] is used.
+  final CaptureFrameStyle? frameStyle;
+
   final CaptureFrameBuilder? frameBuilder;
 
   /// Which viewport orientations are allowed to capture.
@@ -59,7 +65,8 @@ class _CardCaptureViewState extends State<CardCaptureView> {
   @override
   void didUpdateWidget(CardCaptureView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller || oldWidget.onCapture != widget.onCapture) {
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.onCapture != widget.onCapture) {
       oldWidget.controller.detach(oldWidget.onCapture);
       widget.controller.attach(widget.onCapture);
     }
@@ -73,6 +80,9 @@ class _CardCaptureViewState extends State<CardCaptureView> {
 
   @override
   Widget build(BuildContext context) {
+    final themedStyle = DxtrCardScanTheme.of(context).captureFrameStyle;
+    final frameStyle = widget.frameStyle ?? themedStyle;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
@@ -93,10 +103,11 @@ class _CardCaptureViewState extends State<CardCaptureView> {
               else
                 IgnorePointer(
                   child: CustomPaint(
-                    painter: _CaptureFramePainter(frameRect, widget.frameStyle),
+                    painter: _CaptureFramePainter(frameRect, frameStyle),
                   ),
                 )
-            else if (widget.orientationMismatchBuilder case final mismatchBuilder?)
+            else if (widget.orientationMismatchBuilder
+                case final mismatchBuilder?)
               mismatchBuilder(context, orientation, widget.orientationPolicy),
           ],
         );
@@ -114,11 +125,20 @@ class _CaptureFramePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final full = Path()..addRect(Offset.zero & size);
-    final hole = Path()..addRRect(RRect.fromRectAndRadius(frameRect, Radius.circular(style.cornerRadius)));
+    final hole = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          frameRect,
+          Radius.circular(style.cornerRadius),
+        ),
+      );
     final mask = Path.combine(PathOperation.difference, full, hole);
     canvas.drawPath(mask, Paint()..color = style.overlayColor);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(frameRect, Radius.circular(style.cornerRadius)),
+      RRect.fromRectAndRadius(
+        frameRect,
+        Radius.circular(style.cornerRadius),
+      ),
       Paint()
         ..color = style.borderColor
         ..style = PaintingStyle.stroke
