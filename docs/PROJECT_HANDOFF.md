@@ -19,6 +19,7 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 7. Keep future `CardTemplate` and named OCR regions compatible with the normalized-coordinate model.
 8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but the core package remains camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
 9. File/image picking belongs to the host/example. The package may accept an image path and expose crop geometry, but must not depend on an image picker.
+10. Capture orientation policy must not lock the host application's OS orientation. The package only allows/disallows capture for the current viewport orientation; the host decides whether to call `SystemChrome.setPreferredOrientations`.
 
 ## Current branch / PR
 
@@ -43,76 +44,110 @@ Implemented foundation:
 - real-camera reference example using Flutter `camera`
 - CI analyze/test/example/Android-build gates
 
-### Frame geometry contract
+### Camera frame geometry contract
 
-Camera and Gallery do not currently expose identical frame constraints:
+`CaptureFrame` supports:
+- `aspectRatio`
+- `widthFactor`
+- `maxHeightFactor`
+- `fixedSize`
+- `normalizedRect`
+- `alignment`
+- `alignmentPadding`
 
-- Camera uses `CaptureFrame`, which supports `aspectRatio`, `widthFactor`, `maxHeightFactor`, `fixedSize`, and `normalizedRect`.
-- The example Camera currently uses `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)`, so its guide is locked to the ID-1 physical ratio `85.60 / 53.98` while adapting to viewport size.
-- Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. It does not yet lock a crop aspect ratio or fixed crop size.
-- Gallery should remain capable of freeform cropping, but a future API should allow an optional ratio/preset so hosts can request the same ID-1 constraint used by Camera.
+`alignment == null` preserves the original centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and defines an inset viewport before alignment is resolved. Examples:
+
+```dart
+const CaptureFrame.id1(
+  alignment: Alignment.topCenter,
+  alignmentPadding: EdgeInsets.only(top: 32),
+)
+```
+
+```dart
+const CaptureFrame.id1(
+  alignment: Alignment.bottomCenter,
+  alignmentPadding: EdgeInsets.only(bottom: 48),
+)
+```
+
+For auto-sized frames, width/height are calculated from the viewport after `alignmentPadding` is removed, which prevents large insets from pushing the frame outside the usable area. When `normalizedRect` is supplied, it already defines both size and position, so `alignment` and `alignmentPadding` are ignored.
+
+The example Camera still uses `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)` and therefore remains centered until a host opts into another alignment.
+
+### Capture orientation contract
+
+`CardCaptureView` now supports:
+
+```dart
+orientationPolicy: CaptureOrientationPolicy.any
+orientationPolicy: CaptureOrientationPolicy.portraitOnly
+orientationPolicy: CaptureOrientationPolicy.landscapeOnly
+```
+
+Default is `any` for backward compatibility.
+
+When the viewport orientation does not satisfy the policy:
+- camera preview remains visible;
+- capture frame is hidden;
+- `CardCaptureController` is disabled and rejects capture;
+- optional `orientationMismatchBuilder` may render host-specific rotate-device guidance.
+
+The package does not force OS orientation. A host that wants a physically locked portrait-only/landscape-only screen may additionally lock orientation in the app layer.
+
+### Camera vs Gallery frame constraints
+
+Camera and Gallery do not yet expose identical constraints:
+- Camera uses `CaptureFrame` with explicit ratio/size/alignment options.
+- Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing.
+- Gallery should remain capable of freeform cropping, but Roadmap now tracks an optional ratio/preset constraint so hosts can request the same ID-1 or custom ratio used by Camera.
 
 ## v0.1.1 Camera controls
 
-Current control UX contract:
+Portrait:
+- Back top-left
+- Flash immediately to the right of Back
+- zoom scale top-center
+- Torch top-right
+- shutter bottom-center
+- pinch-only zoom
 
-### Portrait
-- full-screen camera surface remains intact
-- Back control at top-left because Camera is now a secondary screen
-- Flash remains in the top-left group immediately after Back
-- zoom scale badge at top-center
-- Torch control at top-right
-- shutter at physical bottom-center
-- zoom is pinch-only; there is no zoom slider
-
-### Landscape
+Landscape:
 - camera remains full-screen
-- use `camera.value.deviceOrientation` to distinguish `landscapeLeft` / `landscapeRight`
-- landscape-left: shutter on the right edge
-- landscape-right: shutter on the left edge
-- Back is anchored at the top of the same edge as the shutter, not top-center, so it stays outside the central scan frame
-- controls live on the edge opposite the shutter
-- Flash is anchored at the top of that opposite edge
-- zoom scale remains centered vertically on that opposite edge
-- Torch is anchored at the bottom of that opposite edge
+- `landscapeLeft`: shutter right
+- `landscapeRight`: shutter left
+- Back at the top of the same edge as shutter, outside the central scan frame
+- opposite edge: Flash top / zoom center / Torch bottom
 
 Camera capabilities:
-- Flash: off / auto / on
-- Torch: independent on/off, restoring the selected still-photo flash mode when disabled
-- Zoom: device min/max queried at initialization; two-finger pinch only
-- current zoom shown as a compact `x` scale badge
+- Flash off / auto / on
+- independent Torch toggle restoring previous still-photo flash mode
+- device min/max zoom queried at initialization
+- pinch-only zoom with current-scale badge
 
 ## v0.1.2 Example home + Gallery crop flow
 
-The example now starts on a home screen with two choices:
-
-1. `Camera` -> opens the existing full-screen camera capture flow as a secondary route.
-2. `Gallery` -> the example uses `image_picker`, then passes only the selected image path into the package crop UI.
+Example Home has:
+1. `Camera` -> full-screen secondary camera route.
+2. `Gallery` -> example-owned `image_picker`, then package `ImageCropView(imagePath: ...)`.
 
 Picker boundary:
-- `image_picker` is an example dependency only.
-- The core package does not import or depend on `image_picker`.
-- iOS example host generation adds both camera and photo-library usage descriptions.
+- `image_picker` exists only in `example/pubspec.yaml`.
+- core package remains picker-agnostic.
 
-Package crop API:
-- `ImageCropView(imagePath: ...)` loads a host-provided local image path.
-- The crop rectangle can be moved and resized from all four corners.
-- The selection is constrained to the displayed source image.
-- `ImageCropSelection` returns the original image path plus a `NormalizedRect` in source-image coordinates.
-- The package does not raster-crop/encode the file yet; v0.2 Rust processing will consume the path + normalized ROI and perform deterministic crop/preprocessing.
-
-Navigation/back design:
-- Gallery crop uses a normal `AppBar` Back affordance because it is a conventional secondary editor screen.
-- Camera remains immersive/full-screen; Back is an overlay control so adding navigation does not shrink or distort the preview.
-- Portrait Camera Back is top-left with Flash shifted immediately to its right.
-- Landscape Camera Back uses the top of the same physical edge as the shutter, leaving the center of the scan frame unobstructed.
-- System back/gesture navigation still works through the Navigator route.
+Package Gallery crop API:
+- accepts host-provided image path;
+- loads source dimensions;
+- uses `BoxFit.contain` source-image geometry;
+- crop rectangle can move and resize from four corners;
+- output is `ImageCropSelection(imagePath, NormalizedRect)`;
+- actual raster crop/encode remains for v0.2 Rust processing.
 
 ## Automated validation required
 
-Before device retest, latest CI must pass:
+Latest material changes must pass:
 - package analyze
-- package unit tests
+- package unit tests, including alignment/padding and orientation policy
 - example dependencies/analyze
 - Android/iOS host scaffolding generation
 - Android debug APK build
@@ -120,18 +155,16 @@ Before device retest, latest CI must pass:
 ## Next physical-device retest
 
 Validate:
-1. Home screen opens and Camera/Gallery routes are obvious.
-2. Camera Back returns to Home in portrait and both landscape orientations.
-3. Camera Back does not collide with Flash, Torch, zoom badge, shutter, or scan frame; in landscape it should sit at the top of the shutter edge.
-4. Existing flash/torch/pinch zoom behavior remains correct.
-5. Gallery opens the platform image picker.
-6. Selected image opens in the package crop screen.
-7. Crop rectangle can be moved.
-8. All four crop corners can be resized and remain inside the image.
-9. `Use crop` returns to Home successfully.
-10. Crop remains aligned correctly for both portrait and landscape source images.
+1. Home -> Camera / Gallery navigation.
+2. Camera Back in portrait and both landscape orientations.
+3. Camera Back remains outside scan frame.
+4. Flash/Torch/pinch zoom behavior.
+5. Gallery picker -> crop -> Use crop.
+6. Gallery crop on portrait and landscape source images.
+7. If exercising new frame APIs, verify top/bottom alignment with non-zero padding.
+8. If exercising `portraitOnly` or `landscapeOnly`, verify frame disappears and capture is disabled in the disallowed orientation, while preview remains visible.
 
-Do not begin v0.2 until this targeted device pass is complete. v0.2 will use the same normalized ROI boundary for both Camera capture and Gallery manual crop.
+Do not begin v0.2 until this targeted device pass is complete.
 
 ## Next milestone: v0.2 Rust processor
 
