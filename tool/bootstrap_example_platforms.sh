@@ -23,6 +23,7 @@ path = sys.argv[1]
 with open(path, 'rb') as f:
     data = plistlib.load(f)
 data['NSCameraUsageDescription'] = 'Capture cards for scanning.'
+data['NSPhotoLibraryUsageDescription'] = 'Choose card images for manual cropping.'
 with open(path, 'wb') as f:
     plistlib.dump(data, f, sort_keys=False)
 PY
