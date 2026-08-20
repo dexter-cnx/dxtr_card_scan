@@ -15,18 +15,28 @@
 - [x] settled physical-device preview geometry validation
 
 ## 0.1.1 Camera controls
-- [x] keep capture controls outside the scan frame in portrait/landscape
+- [x] full-screen orientation-aware camera controls
 - [x] flash off / auto / on
 - [x] independent torch toggle
-- [x] zoom slider using device min/max zoom levels
-- [x] pinch-to-zoom in camera preview
+- [x] pinch-only zoom using device min/max zoom levels
+- [x] current zoom scale badge
 - [ ] physical-device validation for flash, torch, zoom, and landscape control placement
 - [ ] decide whether a stable camera-control abstraction belongs in core or an optional camera adapter before 1.0
+
+## 0.1.2 Gallery crop flow
+- [x] example home screen with Camera and Gallery entries
+- [x] image picker dependency lives only in the example
+- [x] package `ImageCropView` accepts a host-provided image path
+- [x] draggable/resizable crop rectangle
+- [x] package returns `ImageCropSelection` with normalized source-image geometry
+- [x] secondary-screen back navigation for Gallery crop
+- [x] secondary-screen back control for full-screen Camera flow
+- [ ] physical-device validation for Gallery selection/crop and Camera back placement
 
 ## 0.2 Rust processor
 - Rust crate and FFI boundary
 - orientation normalization
-- ROI from capture frame
+- ROI from capture frame or manual gallery crop selection
 - quadrilateral detection
 - perspective correction
 - crop
