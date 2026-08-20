@@ -15,6 +15,11 @@ void main() {
         borderColor: Colors.cyan,
         handleColor: Colors.orange,
       ),
+      cameraControlsStyle: CameraControlsStyle(
+        shutterSize: 92,
+        shutterBackgroundColor: Colors.red,
+        activeControlBackgroundColor: Colors.green,
+      ),
     );
 
     late DxtrCardScanTheme resolved;
@@ -36,13 +41,23 @@ void main() {
     expect(resolved.captureFrameStyle.borderWidth, 4);
     expect(resolved.imageCropStyle.borderColor, Colors.cyan);
     expect(resolved.imageCropStyle.handleColor, Colors.orange);
+    expect(resolved.cameraControlsStyle.shutterSize, 92);
+    expect(resolved.cameraControlsStyle.shutterBackgroundColor, Colors.red);
+    expect(
+      resolved.cameraControlsStyle.activeControlBackgroundColor,
+      Colors.green,
+    );
   });
 
-  test('theme interpolation carries Camera and Gallery visual styles', () {
+  test('theme interpolation carries Camera, controls and Gallery styles', () {
     const a = DxtrCardScanTheme();
     const b = DxtrCardScanTheme(
       captureFrameStyle: CaptureFrameStyle(borderWidth: 6),
       imageCropStyle: ImageCropStyle(borderWidth: 4, handleSize: 24),
+      cameraControlsStyle: CameraControlsStyle(
+        shutterSize: 100,
+        shutterBorderWidth: 6,
+      ),
     );
 
     final middle = a.lerp(b, 0.5);
@@ -50,5 +65,7 @@ void main() {
     expect(middle.captureFrameStyle.borderWidth, 4);
     expect(middle.imageCropStyle.borderWidth, 3);
     expect(middle.imageCropStyle.handleSize, 20);
+    expect(middle.cameraControlsStyle.shutterSize, 90);
+    expect(middle.cameraControlsStyle.shutterBorderWidth, 3);
   });
 }
