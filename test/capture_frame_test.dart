@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -21,5 +20,29 @@ void main() {
     expect(rect.height, 320);
     expect(rect.width, lessThanOrEqualTo(viewport.width));
     expect(rect.width / rect.height, closeTo(85.60 / 53.98, 0.0001));
+  });
+
+  test('frame may align to top with padding', () {
+    const viewport = Size(1000, 800);
+    const frame = CaptureFrame.id1(
+      widthFactor: .8,
+      alignment: Alignment.topCenter,
+      alignmentPadding: EdgeInsets.only(top: 32),
+    );
+    final rect = frame.resolve(viewport);
+    expect(rect.top, 32);
+    expect(rect.center.dx, 500);
+  });
+
+  test('frame may align to bottom with padding', () {
+    const viewport = Size(1000, 800);
+    const frame = CaptureFrame.id1(
+      widthFactor: .8,
+      alignment: Alignment.bottomCenter,
+      alignmentPadding: EdgeInsets.only(bottom: 48),
+    );
+    final rect = frame.resolve(viewport);
+    expect(rect.bottom, 752);
+    expect(rect.center.dx, 500);
   });
 }
