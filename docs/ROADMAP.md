@@ -12,7 +12,16 @@
 - [x] geometry unit tests
 - [x] real-camera example source
 - [x] CI analyze/test gate
-- [ ] physical-device preview/capture geometry validation
+- [x] settled physical-device preview geometry validation
+
+## 0.1.1 Camera controls
+- [x] keep capture controls outside the scan frame in portrait/landscape
+- [x] flash off / auto / on
+- [x] independent torch toggle
+- [x] zoom slider using device min/max zoom levels
+- [x] pinch-to-zoom in camera preview
+- [ ] physical-device validation for flash, torch, zoom, and landscape control placement
+- [ ] decide whether a stable camera-control abstraction belongs in core or an optional camera adapter before 1.0
 
 ## 0.2 Rust processor
 - Rust crate and FFI boundary
