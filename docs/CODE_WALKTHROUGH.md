@@ -27,6 +27,8 @@ This prevents two common scanner bugs:
 ### `src/frame/capture_frame.dart`
 `CaptureFrame` describes where the user should place the card. It supports an ID-1 preset, aspect ratio + viewport width factor, fixed size, or a normalized rectangle.
 
+Automatically sized frames now also use `maxHeightFactor`. Width remains the primary sizing input in portrait, while landscape viewports clamp the frame height and recompute width from the card aspect ratio. This keeps an ID-1 frame fully visible instead of extending above/below a short landscape viewport.
+
 The ID-1 preset uses the 85.60:53.98 physical card ratio used by common identity-card-sized documents.
 
 ### `src/frame/capture_frame_style.dart`
@@ -42,6 +44,10 @@ Defines the default white frame, border width, corner radius, and dark outside o
 
 `example/lib/main.dart` uses Flutter's official `camera` plugin to select a back camera, initialize a real preview, render the ID-1 frame, and trigger a still capture through `CardCaptureController`.
 
+The preview is rendered through `_CoverCameraPreview` rather than placing `CameraPreview` inside a fixed `AspectRatio`. The wrapper derives the displayed aspect ratio from the current viewport orientation, then uses `FittedBox(fit: BoxFit.cover)` plus clipping. This preserves camera-preview proportions in portrait and landscape and avoids the previous portrait squeeze/letterbox behavior.
+
+A brief visual transition may still occur while the platform camera surface itself rotates; the v0.1 device gate checks that the settled preview is correct and that no persistent stretch remains.
+
 The repository intentionally does not commit generated Android/iOS host folders. `tool/bootstrap_example_platforms.sh` creates fresh host scaffolding using the installed Flutter SDK, copies Android/iOS hosts into `example/`, and injects the iOS `NSCameraUsageDescription` entry. Generated host folders are ignored by git.
 
 Useful commands:
@@ -56,7 +62,8 @@ The example intentionally stops after image acquisition in v0.1. Rust preprocess
 ## Automated validation
 
 - normalized coordinate round-trip test
-- ID-1 frame geometry test
+- ID-1 portrait frame geometry test
+- ID-1 landscape max-height clamp test
 - `BoxFit.cover` center-crop mapping test
 - clockwise rotation inverse-mapping test
 - horizontal mirror inverse-mapping test
@@ -66,11 +73,11 @@ The example intentionally stops after image acquisition in v0.1. Rust preprocess
 - Android/iOS host-scaffolding generation gate
 - Android debug APK build gate
 
-CI run `32208833946` completed all of the above successfully before the final documentation-only handoff updates.
-
 ## Manual validation boundary
 
-The remaining uncertainty is platform camera behavior, not Dart compilation. A physical device must confirm how preview orientation and the captured JPEG orientation relate on Android/iOS. That observation decides the concrete `CapturedImageTransform` values supplied to the future processor.
+The first physical-device pass found two presentation issues: the portrait preview was visibly squeezed, and the landscape ID-1 frame could exceed viewport height and expose black/empty preview area inside the frame. Both are now fixed in the capture foundation and require a targeted retest.
+
+The remaining uncertainty is platform camera behavior during/after rotation and the captured JPEG orientation. A physical device must confirm how preview orientation and the captured JPEG orientation relate on Android/iOS. That observation decides the concrete `CapturedImageTransform` values supplied to the future processor.
 
 Do not hide this behavior behind heuristics before device evidence exists.
 
