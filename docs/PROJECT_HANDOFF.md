@@ -17,7 +17,7 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 5. Camera orientation/mirroring must be explicit; do not assume the captured file is already orientation-normalized.
 6. Grayscale and hard thresholding are optional and should not be aggressive defaults.
 7. Keep future `CardTemplate` and named OCR regions compatible with the normalized-coordinate model.
-8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but the core package must remain camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
+8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but the core package remains camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
 
 ## Current milestone
 
@@ -29,56 +29,61 @@ PR: #2
 Confirmed on physical device:
 - back camera opens
 - portrait ID-1 frame is centered and proportionally reasonable
-- settled portrait preview is no longer squeezed/stretched
+- settled portrait preview is not squeezed/stretched
 - settled landscape preview/frame geometry is correct
-- a short transient distortion may still appear during platform rotation; treat as UX polish unless it persists after settling
+- short transient distortion can appear during rotation, but settled preview is correct
 
 Implemented foundation:
 - Flutter package scaffold
-- `NormalizedRect`
-- ID-1 and configurable `CaptureFrame`
-- default `CaptureFrameStyle`
-- fully custom `frameBuilder`
-- camera-plugin-agnostic preview builder
-- manual `CardCaptureController` with explicit lifecycle
-- `BoxFit.cover` preview-to-captured-image geometry mapper
-- explicit `CapturedImageTransform` for 0/90/180/270 degree rotation and horizontal mirroring
-- geometry unit tests including rotation, mirroring, and landscape frame clamping
-- real-camera example source using Flutter's official `camera` plugin
-- generated-host bootstrap script for Android/iOS example platforms
-- GitHub Actions fast gate for package analyze/test, example analyze, host scaffolding, and Android debug APK build
-- Makefile development/build commands
-- architecture, roadmap, walkthrough, and handoff docs
+- normalized geometry and preview-to-image mapping
+- explicit captured-image rotation/mirroring contract
+- configurable ID-1 frame with landscape height clamping
+- camera-plugin-agnostic capture view/controller
+- real-camera reference example using Flutter `camera`
+- CI analyze/test/example/Android-build gates
+- docs, roadmap, walkthrough, handoff
 
 ## v0.1.1 Camera controls — current work
 
-Requested before starting Rust preprocessing:
-- capture button must live in a dedicated physical-bottom control area and never overlap the scan frame in landscape
-- flash modes: off / auto / on
-- independent torch on/off
-- zoom using device-reported min/max range
-- pinch-to-zoom in the preview
+Current control UX contract:
 
-Current implementation in the example:
-- camera surface and scan frame occupy an `Expanded` capture area
-- a separate `SafeArea` bottom control panel owns flash/torch/zoom/shutter controls
-- flash uses `FlashMode.off`, `FlashMode.auto`, and `FlashMode.always`
-- torch temporarily uses `FlashMode.torch` and restores the selected still-photo flash mode when disabled
-- zoom reads `getMinZoomLevel()` / `getMaxZoomLevel()` and supports both a slider and two-finger pinch
-- camera capability failures are surfaced instead of silently assuming every device supports every mode
+### Portrait
+- full-screen camera surface remains intact
+- Flash control at top-left
+- zoom scale badge at top-center
+- Torch control at top-right
+- shutter at physical bottom-center
+- zoom is pinch-only; there is no zoom slider
+
+### Landscape
+- camera remains full-screen; do not reserve half the screen for a bottom control panel
+- use `camera.value.deviceOrientation` to distinguish `landscapeLeft` / `landscapeRight`
+- landscape-left: shutter on the right edge
+- landscape-right: shutter on the left edge
+- Flash / zoom scale / Torch form a vertical stack on the edge opposite the shutter
+- controls remain outside the white scan frame as a UX requirement, even though they overlay the full-screen preview surface
+
+Camera capabilities:
+- Flash: off / auto / on
+- Torch: independent on/off, restoring the selected still-photo flash mode when disabled
+- Zoom: device min/max queried at initialization; two-finger pinch only
+- current zoom shown as a compact `x` scale badge
+- unsupported camera operations surface an error instead of silently failing
 
 Manual retest after CI:
-1. In portrait, shutter controls remain below/outside the scan frame.
-2. In landscape, shutter control is at the physical bottom and never inside the white ID-1 frame.
-3. Flash off works.
-4. Flash auto can be selected.
-5. Flash on fires for still capture on a device that supports it.
-6. Torch turns on/off independently and restores the previous flash selection when turned off.
-7. Zoom slider reaches usable min/max values without errors.
-8. Two-finger pinch zooms smoothly and stays within device min/max.
-9. Settled preview geometry remains correct at non-1x zoom.
+1. Portrait: Flash left / zoom scale center / Torch right.
+2. Portrait: shutter is bottom-center and does not obscure the scan frame.
+3. Landscape-left: shutter is on the right edge.
+4. Landscape-right: shutter is on the left edge.
+5. Landscape: Flash / zoom / Torch are vertically stacked on the edge opposite shutter.
+6. Landscape still uses the full camera viewport; no half-screen control panel or persistent black band.
+7. Flash off/auto/on behave as expected.
+8. Torch toggles and restores prior flash mode.
+9. Pinch zoom works without a slider and stays inside device min/max.
+10. Zoom badge updates while pinching.
+11. Settled preview/frame geometry remains correct at non-1x zoom.
 
-Do not begin v0.2 until this camera-control retest is complete. Zoom especially changes the camera field of view, so the preview/capture alignment must remain reliable before the Rust ROI contract is frozen.
+Do not begin v0.2 until this targeted camera-control retest is complete. Zoom changes field of view, so preview/capture alignment must remain reliable before freezing the Rust ROI contract.
 
 ## Next milestone: v0.2 Rust processor
 
