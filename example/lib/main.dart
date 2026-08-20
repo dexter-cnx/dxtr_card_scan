@@ -106,13 +106,11 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
         children: [
           CardCaptureView(
             controller: _captureController,
-            frame: const CaptureFrame.id1(widthFactor: .88),
-            previewBuilder: (_) => Center(
-              child: AspectRatio(
-                aspectRatio: camera.value.aspectRatio,
-                child: CameraPreview(camera),
-              ),
+            frame: const CaptureFrame.id1(
+              widthFactor: .88,
+              maxHeightFactor: .82,
             ),
+            previewBuilder: (_) => _CoverCameraPreview(controller: camera),
             onCapture: _capture,
           ),
           SafeArea(
@@ -143,6 +141,37 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CoverCameraPreview extends StatelessWidget {
+  const _CoverCameraPreview({required this.controller});
+
+  final CameraController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = constraints.biggest;
+        final cameraAspectRatio = controller.value.aspectRatio;
+        final isPortrait = viewport.height >= viewport.width;
+        final displayedAspectRatio =
+            isPortrait ? 1 / cameraAspectRatio : cameraAspectRatio;
+
+        return ClipRect(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: displayedAspectRatio * 1000,
+              height: 1000,
+              child: CameraPreview(controller),
+            ),
+          ),
+        );
+      },
     );
   }
 }
