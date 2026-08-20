@@ -18,13 +18,14 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 6. Grayscale and hard thresholding are optional and should not be aggressive defaults.
 7. Keep future `CardTemplate` and named OCR regions compatible with the normalized-coordinate model.
 8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but the core package remains camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
+9. File/image picking belongs to the host/example. The package may accept an image path and expose crop geometry, but must not depend on an image picker.
 
-## Current milestone
-
-### v0.1 Capture foundation — settled preview geometry validated on device
+## Current branch / PR
 
 Branch: `agent/v0.1-capture-foundation`
 PR: #2
+
+## v0.1 Capture foundation
 
 Confirmed on physical device:
 - back camera opens
@@ -41,60 +42,93 @@ Implemented foundation:
 - camera-plugin-agnostic capture view/controller
 - real-camera reference example using Flutter `camera`
 - CI analyze/test/example/Android-build gates
-- docs, roadmap, walkthrough, handoff
 
-## v0.1.1 Camera controls — current work
+## v0.1.1 Camera controls
 
 Current control UX contract:
 
 ### Portrait
 - full-screen camera surface remains intact
-- Flash control at top-left
+- Back control at top-left because Camera is now a secondary screen
+- Flash remains in the top-left group immediately after Back
 - zoom scale badge at top-center
 - Torch control at top-right
 - shutter at physical bottom-center
 - zoom is pinch-only; there is no zoom slider
 
 ### Landscape
-- camera remains full-screen; do not reserve half the screen for a bottom control panel
+- camera remains full-screen
 - use `camera.value.deviceOrientation` to distinguish `landscapeLeft` / `landscapeRight`
 - landscape-left: shutter on the right edge
 - landscape-right: shutter on the left edge
+- Back is top-center so it does not collide with the shutter edge or the opposite-edge camera controls
 - controls live on the edge opposite the shutter
 - Flash is anchored at the top of that opposite edge
 - zoom scale remains centered vertically on that opposite edge
 - Torch is anchored at the bottom of that opposite edge
-- controls remain outside the white scan frame as a UX requirement, even though they overlay the full-screen preview surface
 
 Camera capabilities:
 - Flash: off / auto / on
 - Torch: independent on/off, restoring the selected still-photo flash mode when disabled
 - Zoom: device min/max queried at initialization; two-finger pinch only
 - current zoom shown as a compact `x` scale badge
-- unsupported camera operations surface an error instead of silently failing
 
-Manual retest after CI:
-1. Portrait: Flash left / zoom scale center / Torch right.
-2. Portrait: shutter is bottom-center and does not obscure the scan frame.
-3. Landscape-left: shutter is on the right edge.
-4. Landscape-right: shutter is on the left edge.
-5. Landscape: Flash is top-aligned on the edge opposite shutter.
-6. Landscape: zoom badge is vertically centered on the edge opposite shutter.
-7. Landscape: Torch is bottom-aligned on the edge opposite shutter.
-8. Landscape still uses the full camera viewport; no half-screen control panel or persistent black band.
-9. Flash off/auto/on behave as expected.
-10. Torch toggles and restores prior flash mode.
-11. Pinch zoom works without a slider and stays inside device min/max.
-12. Zoom badge updates while pinching.
-13. Settled preview/frame geometry remains correct at non-1x zoom.
+## v0.1.2 Example home + Gallery crop flow
 
-Do not begin v0.2 until this targeted camera-control retest is complete. Zoom changes field of view, so preview/capture alignment must remain reliable before freezing the Rust ROI contract.
+The example now starts on a home screen with two choices:
+
+1. `Camera` -> opens the existing full-screen camera capture flow as a secondary route.
+2. `Gallery` -> the example uses `image_picker`, then passes only the selected image path into the package crop UI.
+
+Picker boundary:
+- `image_picker` is an example dependency only.
+- The core package does not import or depend on `image_picker`.
+- iOS example host generation adds both camera and photo-library usage descriptions.
+
+Package crop API:
+- `ImageCropView(imagePath: ...)` loads a host-provided local image path.
+- The crop rectangle can be moved and resized from all four corners.
+- The selection is constrained to the displayed source image.
+- `ImageCropSelection` returns the original image path plus a `NormalizedRect` in source-image coordinates.
+- The package does not raster-crop/encode the file yet; v0.2 Rust processing will consume the path + normalized ROI and perform deterministic crop/preprocessing.
+
+Navigation/back design:
+- Gallery crop uses a normal `AppBar` Back affordance because it is a conventional secondary editor screen.
+- Camera remains immersive/full-screen; Back is an overlay control so adding navigation does not shrink or distort the preview.
+- Portrait Camera Back is top-left with Flash shifted immediately to its right.
+- Landscape Camera Back is top-center to avoid conflicting with shutter and opposite-edge Flash/Zoom/Torch controls.
+- System back/gesture navigation still works through the Navigator route.
+
+## Automated validation required
+
+Before device retest, latest CI must pass:
+- package analyze
+- package unit tests
+- example dependencies/analyze
+- Android/iOS host scaffolding generation
+- Android debug APK build
+
+## Next physical-device retest
+
+Validate:
+1. Home screen opens and Camera/Gallery routes are obvious.
+2. Camera Back returns to Home in portrait and both landscape orientations.
+3. Camera Back does not collide with Flash, Torch, zoom badge, shutter, or scan frame.
+4. Existing flash/torch/pinch zoom behavior remains correct.
+5. Gallery opens the platform image picker.
+6. Selected image opens in the package crop screen.
+7. Crop rectangle can be moved.
+8. All four crop corners can be resized and remain inside the image.
+9. `Use crop` returns to Home successfully.
+10. Crop remains aligned correctly for both portrait and landscape source images.
+
+Do not begin v0.2 until this targeted device pass is complete. v0.2 will use the same normalized ROI boundary for both Camera capture and Gallery manual crop.
 
 ## Next milestone: v0.2 Rust processor
 
 Planned processing order:
 1. orientation normalization
-2. expected-frame ROI (+ configurable margin)
+2. expected-frame or manual-crop ROI (+ configurable margin when detection is used)
 3. grayscale working copy for detection
 4. blur/edge detection
 5. contours and quadrilateral approximation
