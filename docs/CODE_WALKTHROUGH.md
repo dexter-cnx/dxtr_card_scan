@@ -27,7 +27,7 @@ This prevents two common scanner bugs:
 ### `src/frame/capture_frame.dart`
 `CaptureFrame` describes where the user should place the card. It supports an ID-1 preset, aspect ratio + viewport width factor, fixed size, or a normalized rectangle.
 
-Automatically sized frames now also use `maxHeightFactor`. Width remains the primary sizing input in portrait, while landscape viewports clamp the frame height and recompute width from the card aspect ratio. This keeps an ID-1 frame fully visible instead of extending above/below a short landscape viewport.
+Automatically sized frames also use `maxHeightFactor`. Width remains the primary sizing input in portrait, while landscape viewports clamp the frame height and recompute width from the card aspect ratio. This keeps an ID-1 frame fully visible instead of extending above/below a short landscape viewport.
 
 The ID-1 preset uses the 85.60:53.98 physical card ratio used by common identity-card-sized documents.
 
@@ -40,13 +40,50 @@ Defines the default white frame, border width, corner radius, and dark outside o
 ### `src/capture/card_capture_controller.dart`
 `CardCaptureController` provides manual capture orchestration without owning camera hardware. It has an explicit `dispose` lifecycle and rejects capture/attach operations after disposal.
 
-## Example
+## Example camera adapter
 
-`example/lib/main.dart` uses Flutter's official `camera` plugin to select a back camera, initialize a real preview, render the ID-1 frame, and trigger a still capture through `CardCaptureController`.
+`example/lib/main.dart` uses Flutter's official `camera` plugin as a reference integration. The core package remains camera-plugin agnostic.
 
-The preview is rendered through `_CoverCameraPreview` rather than placing `CameraPreview` inside a fixed `AspectRatio`. The wrapper derives the displayed aspect ratio from the current viewport orientation, then uses `FittedBox(fit: BoxFit.cover)` plus clipping. This preserves camera-preview proportions in portrait and landscape and avoids the previous portrait squeeze/letterbox behavior.
+### Preview
 
-A brief visual transition may still occur while the platform camera surface itself rotates; the v0.1 device gate checks that the settled preview is correct and that no persistent stretch remains.
+`_CoverCameraPreview` derives the displayed aspect ratio from the current viewport orientation and uses `FittedBox(fit: BoxFit.cover)` plus clipping. This preserves camera-preview proportions in portrait and landscape and avoids squeezing or persistent letterboxing.
+
+A brief visual transition may still occur while the platform camera surface itself rotates; the device gate requires the settled preview to be correct.
+
+### Physical-bottom control area
+
+The example no longer overlays the shutter directly on the scan surface. The page is split into:
+
+1. an `Expanded` capture area containing `CardCaptureView`; and
+2. a separate bottom `SafeArea` containing `_CameraControls`.
+
+Because the white frame is resolved only inside the capture area, the shutter, flash, torch, and zoom controls cannot overlap the scan frame in landscape.
+
+### Flash and torch
+
+The example stores still-photo flash mode separately from torch state:
+
+- `FlashMode.off` -> Flash off
+- `FlashMode.auto` -> Flash auto
+- `FlashMode.always` -> Flash on for still capture
+- `FlashMode.torch` -> continuous torch
+
+When torch is disabled, the previously selected still-photo flash mode is restored. This avoids losing the user's off/auto/on selection after temporary torch use.
+
+Camera exceptions are surfaced with a `SnackBar` so unsupported hardware capabilities do not fail silently.
+
+### Zoom
+
+On initialization the example queries:
+
+- `getMinZoomLevel()`
+- `getMaxZoomLevel()`
+
+The device-reported range drives a slider. The preview also has a two-finger `GestureDetector`; pinch scale is multiplied by the zoom level captured at gesture start and clamped to the camera's supported range before calling `setZoomLevel()`.
+
+This zoom implementation must be validated on a physical device because the future Rust ROI assumes the visible frame and captured image continue to correspond at non-1x zoom.
+
+## Generated platform hosts
 
 The repository intentionally does not commit generated Android/iOS host folders. `tool/bootstrap_example_platforms.sh` creates fresh host scaffolding using the installed Flutter SDK, copies Android/iOS hosts into `example/`, and injects the iOS `NSCameraUsageDescription` entry. Generated host folders are ignored by git.
 
@@ -56,8 +93,6 @@ Useful commands:
 make example-platforms
 make example-build-android
 ```
-
-The example intentionally stops after image acquisition in v0.1. Rust preprocessing begins only after real-device geometry validation.
 
 ## Automated validation
 
@@ -75,11 +110,7 @@ The example intentionally stops after image acquisition in v0.1. Rust preprocess
 
 ## Manual validation boundary
 
-The first physical-device pass found two presentation issues: the portrait preview was visibly squeezed, and the landscape ID-1 frame could exceed viewport height and expose black/empty preview area inside the frame. Both are now fixed in the capture foundation and require a targeted retest.
-
-The remaining uncertainty is platform camera behavior during/after rotation and the captured JPEG orientation. A physical device must confirm how preview orientation and the captured JPEG orientation relate on Android/iOS. That observation decides the concrete `CapturedImageTransform` values supplied to the future processor.
-
-Do not hide this behavior behind heuristics before device evidence exists.
+The settled portrait/landscape preview geometry has been reported correct on device. v0.1.1 adds flash, torch, zoom, pinch zoom, and a dedicated physical-bottom control area. These camera controls require one targeted device pass before the capture contract is considered stable enough for v0.2.
 
 ## Next walkthrough section
 
