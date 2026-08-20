@@ -5,7 +5,7 @@ This document tracks the implementation as the package evolves. Update it with e
 ## 0.1 Capture foundation
 
 ### `lib/dxtr_card_scan.dart`
-The public barrel. Only intended public API is exported from here.
+The public barrel. Only intended public API is exported from here, including `CaptureOrientationPolicy`.
 
 ### `src/geometry/normalized_rect.dart`
 `NormalizedRect` is the stable geometry primitive. It stores left/top/right/bottom in `[0,1]` space and converts to or from pixel `Rect` values for a known image size.
@@ -17,99 +17,93 @@ The public barrel. Only intended public API is exported from here.
 `PreviewGeometry` maps a frame over a `BoxFit.cover` preview into source-image geometry, then applies `CapturedImageTransform` to reach raw captured-image coordinates.
 
 ### `src/frame/capture_frame.dart`
-`CaptureFrame` supports ID-1, aspect ratio + width factor, fixed size, or normalized rectangle. Auto-sized frames use `maxHeightFactor` so landscape height is clamped while preserving aspect ratio.
+`CaptureFrame` supports ID-1, arbitrary aspect ratio + width factor, fixed size, or normalized rectangle. Auto-sized frames use `maxHeightFactor` so landscape height is clamped while preserving aspect ratio.
 
-The current Camera example uses `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)`, which locks the guide to the ID-1 ratio `85.60 / 53.98` while allowing the visual size to adapt to the viewport.
+Frame placement is also configurable:
+- `alignment == null` -> historical centered behavior.
+- any Flutter `Alignment` value may be supplied, including `topCenter`, `bottomCenter`, corners, or a custom fractional alignment.
+- `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the viewport before alignment is resolved.
+
+For example:
+
+```dart
+const CaptureFrame.id1(
+  alignment: Alignment.topCenter,
+  alignmentPadding: EdgeInsets.only(top: 32),
+)
+```
+
+Auto-size calculations use the post-padding viewport size. This means padding is part of the geometry constraint, not merely a visual translation. `normalizedRect` bypasses alignment because it already specifies position and size directly.
+
+### `src/capture/capture_orientation_policy.dart`
+`CaptureOrientationPolicy` has three values:
+- `any`
+- `portraitOnly`
+- `landscapeOnly`
+
+`allows(Orientation)` is intentionally a viewport-level decision. It does not call `SystemChrome` and does not force the host application's physical orientation.
 
 ### `src/capture/card_capture_view.dart`
 `CardCaptureView` composes a host-provided preview and customizable frame without importing a specific camera plugin.
 
+The widget determines portrait/landscape from its actual layout size and applies `orientationPolicy`:
+- allowed -> preview + frame render normally and capture remains enabled;
+- disallowed -> preview remains visible, frame is omitted, controller capture is disabled;
+- optional `orientationMismatchBuilder` can overlay a rotate-device prompt or any host-specific UI.
+
+This separation lets a host choose between a soft policy (show preview but disallow capture) and a hard app-level orientation lock.
+
 ### `src/capture/card_capture_controller.dart`
-`CardCaptureController` provides manual capture orchestration and explicit lifecycle without owning camera hardware.
+`CardCaptureController` still owns no camera hardware. It now also has `setCaptureEnabled(bool)` so `CardCaptureView` can reject captures while orientation policy is unsatisfied without detaching the camera delegate.
 
 ## 0.1.2 Manual image crop API
 
 ### `src/crop/image_crop_selection.dart`
-`ImageCropSelection` is the Gallery equivalent of the camera ROI boundary. It contains:
-- the host-provided image path; and
-- a `NormalizedRect` representing the user-selected source-image region.
-
-The model deliberately does not know how the image was selected.
+`ImageCropSelection` is the Gallery equivalent of the camera ROI boundary. It contains the host-provided image path plus a source-relative `NormalizedRect`.
 
 ### `src/crop/image_crop_view.dart`
-`ImageCropView` accepts a local image path from the host and resolves the image's intrinsic dimensions with `FileImage`.
+`ImageCropView` accepts a local image path from the host and resolves intrinsic image dimensions with `FileImage`. `BoxFit.contain` geometry ensures letterbox regions never become part of the crop coordinate system.
 
-The widget uses `BoxFit.contain` geometry to calculate the actual displayed image rectangle. Crop geometry is relative to that rectangle, not the full widget viewport, so letterboxed areas never become part of the normalized crop.
+The current Gallery crop is freeform: users can move the rectangle and resize from four corners. Gallery does not yet consume `CaptureFrame` constraints; Roadmap tracks optional ratio/preset constraints so hosts can request ID-1 or another ratio while retaining freeform as the default.
 
-The crop rectangle:
-- starts inset from the image edges;
-- can be dragged as a whole;
-- has four draggable corner handles;
-- enforces a minimum width/height;
-- clamps every edge to `[0,1]`; and
-- emits `ImageCropSelection` after every change.
-
-Unlike Camera's `CaptureFrame`, Gallery crop is currently freeform: it does not enforce an aspect ratio or fixed crop size. The intended direction is to keep freeform as the default while adding an optional ratio/preset constraint so a host can request ID-1 or another card/document ratio when needed.
-
-No pixels are rewritten yet. v0.2 will take `imagePath + normalizedRect` and perform the actual deterministic crop/preprocessing in Rust.
+No pixels are rewritten yet. v0.2 will take `imagePath + normalizedRect` and perform actual deterministic crop/preprocessing in Rust.
 
 ## Example application
 
 ### Home routing
 
-`example/lib/main.dart` now starts with `ExampleHomePage` rather than opening Camera immediately.
-
-The two entry points are:
+`example/lib/main.dart` starts with `ExampleHomePage`:
 - `Camera` -> pushes `CameraCapturePage`.
-- `Gallery` -> invokes `ImagePicker` in the example, then pushes `GalleryCropPage` with only `XFile.path`.
+- `Gallery` -> example-owned `ImagePicker`, then `GalleryCropPage` with only the selected path.
 
-`image_picker` is therefore an example integration dependency, not a package dependency. A consuming app can substitute any picker/file browser/document source and still pass a path into `ImageCropView`.
+`image_picker` is an example dependency only.
 
 ### Gallery crop page
 
-`GalleryCropPage` is a conventional secondary editor screen with an `AppBar`, system Back support, and a `Use crop` action. The page stores the latest `ImageCropSelection` and returns it through `Navigator.pop`.
+`GalleryCropPage` is a conventional secondary editor screen with AppBar Back, system Back support, and `Use crop` returning the latest `ImageCropSelection`.
 
-### Camera preview
+### Camera preview and controls
 
-`_CoverCameraPreview` derives displayed aspect ratio from current viewport orientation and uses `FittedBox(fit: BoxFit.cover)` with clipping. Settled portrait and landscape preview geometry has already been validated on device.
+`_CoverCameraPreview` uses orientation-aware displayed aspect ratio plus `BoxFit.cover`. Settled portrait/landscape preview geometry has already been validated on device.
 
-### Camera zoom
+Zoom is pinch-only; `_ZoomBadge` shows current scale. Still-photo flash selection is stored independently from temporary torch state.
 
-The example queries device min/max zoom during camera initialization. Zoom is pinch-only. `_ZoomBadge` only displays current scale.
+Portrait controls:
+- Back top-left
+- Flash immediately after Back
+- Zoom top-center
+- Torch top-right
+- Shutter bottom-center
 
-### Flash and torch
+Landscape controls use `camera.value.deviceOrientation`:
+- `landscapeLeft` -> shutter right
+- `landscapeRight` -> shutter left
+- Back at the top of the shutter edge
+- opposite edge -> Flash top / Zoom center / Torch bottom
 
-Still-photo flash mode is stored separately from torch state. Disabling torch restores the previous off/auto/on still-photo flash selection.
+## Generated platform hosts
 
-### Orientation-aware camera controls and Back
-
-Camera remains full-screen even though it is now a secondary route.
-
-Portrait:
-- Back is top-left.
-- Flash sits immediately to the right of Back.
-- Zoom badge is top-center.
-- Torch is top-right.
-- Shutter is bottom-center.
-
-Landscape uses `camera.value.deviceOrientation`:
-- `landscapeLeft` -> shutter right.
-- `landscapeRight` -> shutter left.
-- Flash / zoom / Torch use the opposite edge.
-- Flash is top-aligned, zoom vertically centered, Torch bottom-aligned.
-- Back is anchored to the top of the same edge as the shutter, keeping the central scan frame clear.
-
-The Navigator/system back gesture remains available in addition to the explicit Back affordance.
-
-## Example picker/platform setup
-
-`example/pubspec.yaml` contains `image_picker`; root `pubspec.yaml` does not.
-
-`tool/bootstrap_example_platforms.sh` generates Android/iOS host scaffolding and injects:
-- `NSCameraUsageDescription`
-- `NSPhotoLibraryUsageDescription`
-
-Generated platform folders remain uncommitted.
+`tool/bootstrap_example_platforms.sh` generates Android/iOS host scaffolding and injects camera/photo-library usage descriptions. Generated platform folders remain uncommitted.
 
 Useful commands:
 
@@ -120,16 +114,18 @@ make example-build-android
 
 ## Automated validation
 
-CI continues to gate:
+CI gates:
 - package analyze
 - package unit tests
+- frame alignment/padding tests
+- orientation-policy tests
 - example dependency resolution/analyze
 - Android/iOS host generation
 - Android debug APK build
 
 ## Manual validation boundary
 
-The next physical-device pass should cover Home -> Camera -> Back, Home -> Gallery -> picker -> crop -> Use crop, plus existing flash/torch/pinch zoom and landscape control placement. Both Camera and Gallery must preserve normalized source-image ROI semantics before v0.2 freezes the Rust processing boundary.
+The next device pass should cover Home -> Camera -> Back, Home -> Gallery -> picker -> crop -> Use crop, existing flash/torch/pinch zoom, and landscape control placement. New frame placement/orientation APIs should also be sanity-checked when exercised by a host configuration.
 
 ## Next walkthrough section
 
