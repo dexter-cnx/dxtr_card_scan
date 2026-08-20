@@ -1,6 +1,6 @@
 # Project Handoff
 
-Last updated: 2026-08-19
+Last updated: 2026-08-20
 
 ## Project
 
@@ -20,7 +20,7 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 
 ## Current milestone
 
-### v0.1 Capture foundation — automated gates green, awaiting physical-device validation
+### v0.1 Capture foundation — first device pass completed, targeted retest required
 
 Branch: `agent/v0.1-capture-foundation`
 PR: #2
@@ -42,7 +42,25 @@ Implemented:
 - Makefile development/build commands
 - architecture, roadmap, walkthrough, and handoff docs
 
-Automated validation status:
+## First physical-device findings
+
+Confirmed working:
+- back camera opens
+- portrait ID-1 frame is centered and proportionally reasonable
+
+Issues observed:
+1. Portrait preview was visibly squeezed, as if a portrait camera image had been forced into a landscape aspect ratio.
+2. Landscape frame height exceeded the screen, leaving black/empty preview area inside the frame.
+3. During device rotation the preview visibly distorted briefly before settling.
+
+Fixes now applied:
+- example preview uses orientation-aware displayed aspect ratio with `FittedBox(fit: BoxFit.cover)` and clipping rather than a fixed `AspectRatio`
+- `CaptureFrame` now supports `maxHeightFactor` and clamps auto-sized frames in short landscape viewports while preserving the card aspect ratio
+- added a landscape frame-clamp unit test
+
+## Automated validation
+
+The earlier baseline passed:
 - package dependencies: PASS
 - package analyze: PASS
 - package unit tests: PASS
@@ -50,35 +68,24 @@ Automated validation status:
 - example analyze: PASS
 - Android/iOS host scaffolding generation: PASS
 - Android example `flutter build apk --debug`: PASS
-- latest successful workflow run: CI #6 / run 32208833946
 
-## Manual validation gate — CURRENT STOP POINT
+After the preview/frame fixes, CI must pass again before the targeted retest.
 
-Do not begin v0.2 Rust processing until this gate is complete because the Rust ROI contract depends on real camera orientation behavior.
+## Manual validation gate — CURRENT STOP POINT AFTER CI
 
-From the repository root:
+Do not begin v0.2 Rust processing until this retest is complete because the Rust ROI contract depends on real camera orientation behavior.
 
-```sh
-git checkout agent/v0.1-capture-foundation
-flutter pub get
-make example-platforms
-cd example
-flutter pub get
-flutter devices
-flutter run -d <physical-device-id>
-```
+Retest only these items:
+1. Portrait preview is no longer squeezed/stretched.
+2. Portrait ID-1 frame remains centered and sensible.
+3. Landscape frame remains fully inside the visible screen.
+4. No black/empty band appears inside the capture frame once rotation settles.
+5. Landscape preview is not stretched.
+6. Rotate portrait -> landscape -> portrait and report whether distortion remains only transient or persists after settling.
+7. Capture at least one image in portrait and, if possible, landscape.
+8. Report captured JPEG pixel dimensions and whether each JPEG opens as portrait or landscape outside the app.
 
-Validate on at least one physical Android or iOS device:
-1. Camera opens without permission/lifecycle errors.
-2. Back-camera preview is visible and usable.
-3. White ID-1 frame is centered and sized sensibly in portrait.
-4. Put a physical card inside the frame and capture it.
-5. Captured image is produced successfully.
-6. Rotate the device and report whether the preview/frame remains correctly oriented.
-7. Report device/platform plus whether preview appears cropped, stretched, letterboxed, mirrored, or rotated incorrectly.
-8. If possible, report captured JPEG pixel dimensions and whether the JPEG itself is portrait or landscape when inspected outside the app.
-
-If any geometry/orientation issue appears, fix v0.1 before merge. If this gate passes, mark PR #2 ready/merge and proceed to v0.2 Rust processor.
+If settled preview geometry is correct, a short transient platform-surface distortion during rotation can be treated separately as UX polish rather than blocking the Rust ROI contract. Persistent stretch/crop/letterbox remains a v0.1 blocker.
 
 ## Next milestone: v0.2 Rust processor
 
