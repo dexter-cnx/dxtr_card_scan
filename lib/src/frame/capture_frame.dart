@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'package:flutter/painting.dart';
 
 import '../geometry/normalized_rect.dart';
 
@@ -10,6 +10,7 @@ class CaptureFrame {
     this.maxHeightFactor = 0.82,
     this.fixedSize,
     this.normalizedRect,
+    this.alignment,
   }) : assert(widthFactor > 0 && widthFactor <= 1),
        assert(maxHeightFactor > 0 && maxHeightFactor <= 1),
        assert(aspectRatio == null || aspectRatio > 0),
@@ -22,6 +23,7 @@ class CaptureFrame {
   const CaptureFrame.id1({
     this.widthFactor = 0.88,
     this.maxHeightFactor = 0.82,
+    this.alignment,
   }) : aspectRatio = 85.60 / 53.98,
        fixedSize = null,
        normalizedRect = null;
@@ -36,6 +38,13 @@ class CaptureFrame {
 
   final Size? fixedSize;
   final NormalizedRect? normalizedRect;
+
+  /// Position of an automatically sized or fixed-size frame in the viewport.
+  ///
+  /// `null` preserves the historical behavior and resolves to
+  /// [Alignment.center]. This value is ignored when [normalizedRect] is used,
+  /// because that rectangle already defines both size and position.
+  final Alignment? alignment;
 
   Rect resolve(Size viewport) {
     if (normalizedRect case final normalized?) {
@@ -57,10 +66,9 @@ class CaptureFrame {
       size = Size(width, height);
     }
 
-    return Rect.fromCenter(
-      center: Offset(viewport.width / 2, viewport.height / 2),
-      width: size.width,
-      height: size.height,
+    return (alignment ?? Alignment.center).inscribe(
+      size,
+      Offset.zero & viewport,
     );
   }
 }
