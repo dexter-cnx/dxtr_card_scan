@@ -5,13 +5,17 @@ typedef CardCaptureDelegate = Future<Object?> Function();
 /// Coordinates manual capture without owning a camera plugin.
 class CardCaptureController {
   CardCaptureDelegate? _delegate;
+  bool _enabled = true;
   bool _disposed = false;
 
-  bool get canCapture => !_disposed && _delegate != null;
+  bool get canCapture => !_disposed && _enabled && _delegate != null;
 
   Future<Object?> capture() {
     if (_disposed) {
       throw StateError('CardCaptureController has been disposed.');
+    }
+    if (!_enabled) {
+      throw StateError('Capture is disabled for the current orientation.');
     }
     final delegate = _delegate;
     if (delegate == null) {
@@ -31,6 +35,14 @@ class CardCaptureController {
     if (!_disposed && identical(_delegate, delegate)) {
       _delegate = null;
     }
+  }
+
+  /// Enables or disables capture without detaching the camera delegate.
+  void setCaptureEnabled(bool enabled) {
+    if (_disposed) {
+      throw StateError('CardCaptureController has been disposed.');
+    }
+    _enabled = enabled;
   }
 
   /// Releases the attached capture delegate.
