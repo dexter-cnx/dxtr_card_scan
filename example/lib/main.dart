@@ -19,7 +19,11 @@ class CardScanExample extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true),
+      theme: ThemeData.dark(useMaterial3: true).copyWith(
+        extensions: const [
+          DxtrCardScanTheme(),
+        ],
+      ),
       home: ExampleHomePage(cameras: cameras),
     );
   }
@@ -310,7 +314,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
     if (camera == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    final orientation = MediaQuery.orientationOf(context);
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -335,7 +339,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
             onCapture: _capture,
           ),
           _OrientationCameraControls(
-            orientation: orientation,
+            orientation: MediaQuery.orientationOf(context),
             deviceOrientation: camera.value.deviceOrientation,
             captureController: _captureController,
             flashMode: _flashMode,
@@ -417,11 +421,7 @@ class _OrientationCameraControls extends StatelessWidget {
               alignment: Alignment.topLeft,
               child: Padding(
                 padding: const EdgeInsets.all(8),
-                child: IconButton.filledTonal(
-                  tooltip: 'Back',
-                  onPressed: onBack,
-                  icon: const Icon(Icons.arrow_back),
-                ),
+                child: _BackButton(onPressed: onBack),
               ),
             ),
             Align(
@@ -476,8 +476,6 @@ class _OrientationCameraControls extends StatelessWidget {
     }
 
     final shutterOnRight = deviceOrientation == DeviceOrientation.landscapeLeft;
-    final shutterAlignment =
-        shutterOnRight ? Alignment.centerRight : Alignment.centerLeft;
     final shutterHorizontal = shutterOnRight ? 1.0 : -1.0;
     final controlHorizontal = -shutterHorizontal;
     return SafeArea(
@@ -487,15 +485,11 @@ class _OrientationCameraControls extends StatelessWidget {
             alignment: Alignment(shutterHorizontal, -1),
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: IconButton.filledTonal(
-                tooltip: 'Back',
-                onPressed: onBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
+              child: _BackButton(onPressed: onBack),
             ),
           ),
           Align(
-            alignment: shutterAlignment,
+            alignment: Alignment(shutterHorizontal, 0),
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: _ShutterButton(captureController: captureController),
@@ -546,6 +540,9 @@ class _OrientationCameraControls extends StatelessWidget {
   }
 }
 
+CameraControlsStyle _cameraStyle(BuildContext context) =>
+    DxtrCardScanTheme.of(context).cameraControlsStyle;
+
 class _ShutterButton extends StatelessWidget {
   const _ShutterButton({required this.captureController});
 
@@ -553,9 +550,53 @@ class _ShutterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton.large(
-      onPressed: () => captureController.capture(),
-      child: const Icon(Icons.camera_alt),
+    final style = _cameraStyle(context);
+    final colors = Theme.of(context).colorScheme;
+    final borderColor = style.shutterBorderColor ?? colors.onSurface;
+    final background = style.shutterBackgroundColor ?? colors.surface;
+    final foreground = style.shutterForegroundColor ?? colors.onSurface;
+
+    return SizedBox.square(
+      dimension: style.shutterSize,
+      child: Material(
+        color: style.shutterBorderWidth > 0 ? borderColor : background,
+        shape: style.shutterShape,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.all(style.shutterBorderWidth),
+          child: Material(
+            color: background,
+            shape: style.shutterShape,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              customBorder: style.shutterShape,
+              onTap: () => captureController.capture(),
+              child: Icon(Icons.camera_alt, color: foreground),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _cameraStyle(context);
+    final colors = Theme.of(context).colorScheme;
+    return IconButton.filled(
+      tooltip: 'Back',
+      style: IconButton.styleFrom(
+        backgroundColor: style.controlBackgroundColor ?? colors.surfaceContainer,
+        foregroundColor: style.controlForegroundColor ?? colors.onSurface,
+      ),
+      onPressed: onPressed,
+      icon: const Icon(Icons.arrow_back),
     );
   }
 }
@@ -567,14 +608,21 @@ class _ZoomBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = _cameraStyle(context);
+    final colors = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black54,
+        color: style.zoomBadgeBackgroundColor ?? colors.surfaceContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        child: Text('${zoom.toStringAsFixed(1)}×'),
+        child: Text(
+          '${zoom.toStringAsFixed(1)}×',
+          style: TextStyle(
+            color: style.zoomBadgeForegroundColor ?? colors.onSurface,
+          ),
+        ),
       ),
     );
   }
@@ -588,8 +636,20 @@ class _TorchButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton.filledTonal(
+    final style = _cameraStyle(context);
+    final colors = Theme.of(context).colorScheme;
+    final background = enabled
+        ? style.activeControlBackgroundColor ?? colors.primary
+        : style.controlBackgroundColor ?? colors.surfaceContainer;
+    final foreground = enabled
+        ? style.activeControlForegroundColor ?? colors.onPrimary
+        : style.controlForegroundColor ?? colors.onSurface;
+    return IconButton.filled(
       tooltip: enabled ? 'Torch off' : 'Torch on',
+      style: IconButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
+      ),
       onPressed: onPressed,
       icon: Icon(enabled ? Icons.flashlight_on : Icons.flashlight_off),
     );
@@ -602,8 +662,20 @@ class _FlashMenu extends StatelessWidget {
   final FlashMode flashMode;
   final ValueChanged<FlashMode> onChanged;
 
+  bool get _active =>
+      flashMode == FlashMode.auto || flashMode == FlashMode.always;
+
   @override
   Widget build(BuildContext context) {
+    final style = _cameraStyle(context);
+    final colors = Theme.of(context).colorScheme;
+    final background = _active
+        ? style.activeControlBackgroundColor ?? colors.primary
+        : style.controlBackgroundColor ?? colors.surfaceContainer;
+    final foreground = _active
+        ? style.activeControlForegroundColor ?? colors.onPrimary
+        : style.controlForegroundColor ?? colors.onSurface;
+
     return PopupMenuButton<FlashMode>(
       tooltip: 'Flash mode',
       initialValue: flashMode,
@@ -613,9 +685,13 @@ class _FlashMenu extends StatelessWidget {
         PopupMenuItem(value: FlashMode.auto, child: Text('Flash auto')),
         PopupMenuItem(value: FlashMode.always, child: Text('Flash on')),
       ],
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Icon(_flashIcon(flashMode)),
+      child: Material(
+        color: background,
+        shape: const CircleBorder(),
+        child: SizedBox.square(
+          dimension: 48,
+          child: Icon(_flashIcon(flashMode), color: foreground),
+        ),
       ),
     );
   }
