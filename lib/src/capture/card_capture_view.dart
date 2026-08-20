@@ -2,10 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
+import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 
 typedef CaptureFrameBuilder = Widget Function(BuildContext context, Rect frameRect);
 typedef CardPreviewBuilder = Widget Function(BuildContext context);
+typedef CaptureOrientationMismatchBuilder = Widget Function(
+  BuildContext context,
+  Orientation currentOrientation,
+  CaptureOrientationPolicy policy,
+);
 
 /// Camera-agnostic capture surface with a customizable capture frame.
 class CardCaptureView extends StatefulWidget {
@@ -16,6 +22,8 @@ class CardCaptureView extends StatefulWidget {
     this.frame = const CaptureFrame.id1(),
     this.frameStyle = const CaptureFrameStyle(),
     this.frameBuilder,
+    this.orientationPolicy = CaptureOrientationPolicy.any,
+    this.orientationMismatchBuilder,
     super.key,
   });
 
@@ -25,6 +33,17 @@ class CardCaptureView extends StatefulWidget {
   final CaptureFrame frame;
   final CaptureFrameStyle frameStyle;
   final CaptureFrameBuilder? frameBuilder;
+
+  /// Which viewport orientations are allowed to capture.
+  ///
+  /// This does not lock the host application's OS orientation. It controls
+  /// only this capture surface: when the current orientation is not allowed,
+  /// the frame is hidden and [controller] cannot capture.
+  final CaptureOrientationPolicy orientationPolicy;
+
+  /// Optional UI shown over the preview when [orientationPolicy] rejects the
+  /// current viewport orientation.
+  final CaptureOrientationMismatchBuilder? orientationMismatchBuilder;
 
   @override
   State<CardCaptureView> createState() => _CardCaptureViewState();
@@ -57,19 +76,28 @@ class _CardCaptureViewState extends State<CardCaptureView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.biggest;
+        final orientation = size.height >= size.width
+            ? Orientation.portrait
+            : Orientation.landscape;
+        final orientationAllowed = widget.orientationPolicy.allows(orientation);
+        widget.controller.setCaptureEnabled(orientationAllowed);
+
         final frameRect = widget.frame.resolve(size);
         return Stack(
           fit: StackFit.expand,
           children: [
             widget.previewBuilder(context),
-            if (widget.frameBuilder case final builder?)
-              builder(context, frameRect)
-            else
-              IgnorePointer(
-                child: CustomPaint(
-                  painter: _CaptureFramePainter(frameRect, widget.frameStyle),
-                ),
-              ),
+            if (orientationAllowed)
+              if (widget.frameBuilder case final builder?)
+                builder(context, frameRect)
+              else
+                IgnorePointer(
+                  child: CustomPaint(
+                    painter: _CaptureFramePainter(frameRect, widget.frameStyle),
+                  ),
+                )
+            else if (widget.orientationMismatchBuilder case final mismatchBuilder?)
+              mismatchBuilder(context, orientation, widget.orientationPolicy),
           ],
         );
       },
