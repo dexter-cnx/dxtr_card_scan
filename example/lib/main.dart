@@ -320,8 +320,7 @@ class _OrientationCameraControls extends StatelessWidget {
     final shutterOnRight = deviceOrientation == DeviceOrientation.landscapeLeft;
     final shutterAlignment =
         shutterOnRight ? Alignment.centerRight : Alignment.centerLeft;
-    final controlsAlignment =
-        shutterOnRight ? Alignment.centerLeft : Alignment.centerRight;
+    final controlHorizontal = shutterOnRight ? -1.0 : 1.0;
 
     return SafeArea(
       child: Stack(
@@ -334,24 +333,29 @@ class _OrientationCameraControls extends StatelessWidget {
             ),
           ),
           Align(
-            alignment: controlsAlignment,
+            alignment: Alignment(controlHorizontal, -1),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: _FlashMenu(
+                flashMode: flashMode,
+                onChanged: onFlashModeChanged,
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment(controlHorizontal, 0),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _FlashMenu(
-                    flashMode: flashMode,
-                    onChanged: onFlashModeChanged,
-                  ),
-                  const SizedBox(height: 12),
-                  _ZoomBadge(zoom: zoom),
-                  const SizedBox(height: 12),
-                  _TorchButton(
-                    enabled: torchEnabled,
-                    onPressed: onTorchPressed,
-                  ),
-                ],
+              child: _ZoomBadge(zoom: zoom),
+            ),
+          ),
+          Align(
+            alignment: Alignment(controlHorizontal, 1),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: _TorchButton(
+                enabled: torchEnabled,
+                onPressed: onTorchPressed,
               ),
             ),
           ),
