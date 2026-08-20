@@ -60,7 +60,10 @@ Current control UX contract:
 - use `camera.value.deviceOrientation` to distinguish `landscapeLeft` / `landscapeRight`
 - landscape-left: shutter on the right edge
 - landscape-right: shutter on the left edge
-- Flash / zoom scale / Torch form a vertical stack on the edge opposite the shutter
+- controls live on the edge opposite the shutter
+- Flash is anchored at the top of that opposite edge
+- zoom scale remains centered vertically on that opposite edge
+- Torch is anchored at the bottom of that opposite edge
 - controls remain outside the white scan frame as a UX requirement, even though they overlay the full-screen preview surface
 
 Camera capabilities:
@@ -75,13 +78,15 @@ Manual retest after CI:
 2. Portrait: shutter is bottom-center and does not obscure the scan frame.
 3. Landscape-left: shutter is on the right edge.
 4. Landscape-right: shutter is on the left edge.
-5. Landscape: Flash / zoom / Torch are vertically stacked on the edge opposite shutter.
-6. Landscape still uses the full camera viewport; no half-screen control panel or persistent black band.
-7. Flash off/auto/on behave as expected.
-8. Torch toggles and restores prior flash mode.
-9. Pinch zoom works without a slider and stays inside device min/max.
-10. Zoom badge updates while pinching.
-11. Settled preview/frame geometry remains correct at non-1x zoom.
+5. Landscape: Flash is top-aligned on the edge opposite shutter.
+6. Landscape: zoom badge is vertically centered on the edge opposite shutter.
+7. Landscape: Torch is bottom-aligned on the edge opposite shutter.
+8. Landscape still uses the full camera viewport; no half-screen control panel or persistent black band.
+9. Flash off/auto/on behave as expected.
+10. Torch toggles and restores prior flash mode.
+11. Pinch zoom works without a slider and stays inside device min/max.
+12. Zoom badge updates while pinching.
+13. Settled preview/frame geometry remains correct at non-1x zoom.
 
 Do not begin v0.2 until this targeted camera-control retest is complete. Zoom changes field of view, so preview/capture alignment must remain reliable before freezing the Rust ROI contract.
 
