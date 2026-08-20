@@ -64,9 +64,12 @@ Portrait layout:
 Landscape layout uses `camera.value.deviceOrientation`, not safe-area heuristics:
 - `DeviceOrientation.landscapeLeft` -> shutter on right
 - `DeviceOrientation.landscapeRight` -> shutter on left
-- Flash / zoom / Torch are vertically stacked on the opposite edge
+- controls occupy the edge opposite the shutter
+- `_FlashMenu` is anchored to the top of that edge
+- `_ZoomBadge` is anchored to the vertical center of that edge
+- `_TorchButton` is anchored to the bottom of that edge
 
-This keeps the camera full-screen and matches the physical-bottom control expectation for either landscape rotation.
+The implementation uses three separate `Align` widgets instead of a centered `Column`, which spreads the controls across the full safe height and keeps Flash/Torch close to the physical top/bottom edges.
 
 ## Generated platform hosts
 
@@ -95,7 +98,7 @@ make example-build-android
 
 ## Manual validation boundary
 
-The next physical-device pass must validate orientation-aware control placement, flash/torch behavior, pinch-only zoom, zoom-badge updates, and preview/frame correctness at non-1x zoom. v0.2 should not freeze the Rust ROI contract until that pass is complete.
+The next physical-device pass must validate orientation-aware control placement, flash/torch behavior, pinch-only zoom, zoom-badge updates, and preview/frame correctness at non-1x zoom. In landscape specifically, confirm Flash is near the physical top and Torch near the physical bottom of the edge opposite shutter.
 
 ## Next walkthrough section
 
