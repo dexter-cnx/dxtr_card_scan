@@ -1,6 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -190,6 +191,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
           ),
           _OrientationCameraControls(
             orientation: orientation,
+            deviceOrientation: camera.value.deviceOrientation,
             captureController: _captureController,
             flashMode: _flashMode,
             torchEnabled: _torchEnabled,
@@ -238,6 +240,7 @@ class _CoverCameraPreview extends StatelessWidget {
 class _OrientationCameraControls extends StatelessWidget {
   const _OrientationCameraControls({
     required this.orientation,
+    required this.deviceOrientation,
     required this.captureController,
     required this.flashMode,
     required this.torchEnabled,
@@ -248,6 +251,7 @@ class _OrientationCameraControls extends StatelessWidget {
   });
 
   final Orientation orientation;
+  final DeviceOrientation deviceOrientation;
   final CardCaptureController captureController;
   final FlashMode flashMode;
   final bool torchEnabled;
@@ -313,13 +317,11 @@ class _OrientationCameraControls extends StatelessWidget {
       );
     }
 
-    final deviceOrientation = MediaQuery.of(context).orientation;
-    final viewPadding = MediaQuery.viewPaddingOf(context);
-    final physicalBottomIsLeft = viewPadding.left > viewPadding.right;
+    final shutterOnRight = deviceOrientation == DeviceOrientation.landscapeLeft;
     final shutterAlignment =
-        physicalBottomIsLeft ? Alignment.centerLeft : Alignment.centerRight;
+        shutterOnRight ? Alignment.centerRight : Alignment.centerLeft;
     final controlsAlignment =
-        physicalBottomIsLeft ? Alignment.centerRight : Alignment.centerLeft;
+        shutterOnRight ? Alignment.centerLeft : Alignment.centerRight;
 
     return SafeArea(
       child: Stack(
@@ -438,9 +440,9 @@ class _FlashMenu extends StatelessWidget {
         PopupMenuItem(value: FlashMode.auto, child: Text('Flash auto')),
         PopupMenuItem(value: FlashMode.always, child: Text('Flash on')),
       ],
-      child: IconButton.filledTonal(
-        onPressed: null,
-        icon: Icon(_flashIcon(flashMode)),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Icon(_flashIcon(flashMode)),
       ),
     );
   }
