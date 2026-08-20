@@ -11,6 +11,7 @@ class CaptureFrame {
     this.fixedSize,
     this.normalizedRect,
     this.alignment,
+    this.alignmentPadding = EdgeInsets.zero,
   }) : assert(widthFactor > 0 && widthFactor <= 1),
        assert(maxHeightFactor > 0 && maxHeightFactor <= 1),
        assert(aspectRatio == null || aspectRatio > 0),
@@ -24,6 +25,7 @@ class CaptureFrame {
     this.widthFactor = 0.88,
     this.maxHeightFactor = 0.82,
     this.alignment,
+    this.alignmentPadding = EdgeInsets.zero,
   }) : aspectRatio = 85.60 / 53.98,
        fixedSize = null,
        normalizedRect = null;
@@ -46,19 +48,30 @@ class CaptureFrame {
   /// because that rectangle already defines both size and position.
   final Alignment? alignment;
 
+  /// Insets applied to the viewport before [alignment] is resolved.
+  ///
+  /// For example, `Alignment.topCenter` with
+  /// `EdgeInsets.only(top: 32)` keeps the frame 32 logical pixels away from
+  /// the top edge. Ignored when [normalizedRect] is used.
+  final EdgeInsets alignmentPadding;
+
   Rect resolve(Size viewport) {
     if (normalizedRect case final normalized?) {
       return normalized.toRect(viewport);
     }
+
+    final viewportRect = Offset.zero & viewport;
+    final alignmentRect = alignmentPadding.deflateRect(viewportRect);
+    final availableSize = alignmentRect.size;
 
     final Size size;
     if (fixedSize case final fixed?) {
       size = fixed;
     } else {
       final ratio = aspectRatio ?? 85.60 / 53.98;
-      var width = viewport.width * widthFactor;
+      var width = availableSize.width * widthFactor;
       var height = width / ratio;
-      final maxHeight = viewport.height * maxHeightFactor;
+      final maxHeight = availableSize.height * maxHeightFactor;
       if (height > maxHeight) {
         height = maxHeight;
         width = height * ratio;
@@ -66,9 +79,6 @@ class CaptureFrame {
       size = Size(width, height);
     }
 
-    return (alignment ?? Alignment.center).inscribe(
-      size,
-      Offset.zero & viewport,
-    );
+    return (alignment ?? Alignment.center).inscribe(size, alignmentRect);
   }
 }
