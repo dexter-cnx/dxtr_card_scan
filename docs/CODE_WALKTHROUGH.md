@@ -19,6 +19,8 @@ The public barrel. Only intended public API is exported from here.
 ### `src/frame/capture_frame.dart`
 `CaptureFrame` supports ID-1, aspect ratio + width factor, fixed size, or normalized rectangle. Auto-sized frames use `maxHeightFactor` so landscape height is clamped while preserving aspect ratio.
 
+The current Camera example uses `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)`, which locks the guide to the ID-1 ratio `85.60 / 53.98` while allowing the visual size to adapt to the viewport.
+
 ### `src/capture/card_capture_view.dart`
 `CardCaptureView` composes a host-provided preview and customizable frame without importing a specific camera plugin.
 
@@ -46,6 +48,8 @@ The crop rectangle:
 - enforces a minimum width/height;
 - clamps every edge to `[0,1]`; and
 - emits `ImageCropSelection` after every change.
+
+Unlike Camera's `CaptureFrame`, Gallery crop is currently freeform: it does not enforce an aspect ratio or fixed crop size. The intended direction is to keep freeform as the default while adding an optional ratio/preset constraint so a host can request ID-1 or another card/document ratio when needed.
 
 No pixels are rewritten yet. v0.2 will take `imagePath + normalizedRect` and perform the actual deterministic crop/preprocessing in Rust.
 
@@ -93,7 +97,7 @@ Landscape uses `camera.value.deviceOrientation`:
 - `landscapeRight` -> shutter left.
 - Flash / zoom / Torch use the opposite edge.
 - Flash is top-aligned, zoom vertically centered, Torch bottom-aligned.
-- Back is top-center so navigation does not collide with either control edge.
+- Back is anchored to the top of the same edge as the shutter, keeping the central scan frame clear.
 
 The Navigator/system back gesture remains available in addition to the explicit Back affordance.
 
