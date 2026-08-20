@@ -8,10 +8,12 @@
 - [x] normalized frame geometry
 - [x] configurable frame alignment with optional alignment padding
 - [x] capture orientation policy: any / portrait-only / landscape-only
+- [x] shared `DxtrCardScanTheme` ThemeExtension for Camera and Gallery visuals
+- [x] per-widget style override above inherited package theme
 - [x] `BoxFit.cover` preview-to-image mapping
 - [x] explicit captured-image rotation/mirroring contract
 - [x] manual capture controller abstraction
-- [x] geometry/orientation-policy unit tests
+- [x] geometry/orientation/theme unit tests
 - [x] real-camera example source
 - [x] CI analyze/test gate
 - [x] settled physical-device preview geometry validation
@@ -33,6 +35,7 @@
 - [x] package returns `ImageCropSelection` with normalized source-image geometry
 - [x] secondary-screen back navigation for Gallery crop
 - [x] secondary-screen back control for full-screen Camera flow
+- [x] Gallery crop visuals inherit `DxtrCardScanTheme.imageCropStyle`
 - [ ] optional Gallery ratio/preset constraint matching Camera frame constraints
 - [ ] physical-device validation for Gallery selection/crop and Camera back placement
 
