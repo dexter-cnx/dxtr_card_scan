@@ -43,6 +43,15 @@ Implemented foundation:
 - real-camera reference example using Flutter `camera`
 - CI analyze/test/example/Android-build gates
 
+### Frame geometry contract
+
+Camera and Gallery do not currently expose identical frame constraints:
+
+- Camera uses `CaptureFrame`, which supports `aspectRatio`, `widthFactor`, `maxHeightFactor`, `fixedSize`, and `normalizedRect`.
+- The example Camera currently uses `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)`, so its guide is locked to the ID-1 physical ratio `85.60 / 53.98` while adapting to viewport size.
+- Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. It does not yet lock a crop aspect ratio or fixed crop size.
+- Gallery should remain capable of freeform cropping, but a future API should allow an optional ratio/preset so hosts can request the same ID-1 constraint used by Camera.
+
 ## v0.1.1 Camera controls
 
 Current control UX contract:
@@ -61,7 +70,7 @@ Current control UX contract:
 - use `camera.value.deviceOrientation` to distinguish `landscapeLeft` / `landscapeRight`
 - landscape-left: shutter on the right edge
 - landscape-right: shutter on the left edge
-- Back is top-center so it does not collide with the shutter edge or the opposite-edge camera controls
+- Back is anchored at the top of the same edge as the shutter, not top-center, so it stays outside the central scan frame
 - controls live on the edge opposite the shutter
 - Flash is anchored at the top of that opposite edge
 - zoom scale remains centered vertically on that opposite edge
@@ -96,7 +105,7 @@ Navigation/back design:
 - Gallery crop uses a normal `AppBar` Back affordance because it is a conventional secondary editor screen.
 - Camera remains immersive/full-screen; Back is an overlay control so adding navigation does not shrink or distort the preview.
 - Portrait Camera Back is top-left with Flash shifted immediately to its right.
-- Landscape Camera Back is top-center to avoid conflicting with shutter and opposite-edge Flash/Zoom/Torch controls.
+- Landscape Camera Back uses the top of the same physical edge as the shutter, leaving the center of the scan frame unobstructed.
 - System back/gesture navigation still works through the Navigator route.
 
 ## Automated validation required
@@ -113,7 +122,7 @@ Before device retest, latest CI must pass:
 Validate:
 1. Home screen opens and Camera/Gallery routes are obvious.
 2. Camera Back returns to Home in portrait and both landscape orientations.
-3. Camera Back does not collide with Flash, Torch, zoom badge, shutter, or scan frame.
+3. Camera Back does not collide with Flash, Torch, zoom badge, shutter, or scan frame; in landscape it should sit at the top of the shutter edge.
 4. Existing flash/torch/pinch zoom behavior remains correct.
 5. Gallery opens the platform image picker.
 6. Selected image opens in the package crop screen.
