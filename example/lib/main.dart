@@ -478,14 +478,15 @@ class _OrientationCameraControls extends StatelessWidget {
     final shutterOnRight = deviceOrientation == DeviceOrientation.landscapeLeft;
     final shutterAlignment =
         shutterOnRight ? Alignment.centerRight : Alignment.centerLeft;
-    final controlHorizontal = shutterOnRight ? -1.0 : 1.0;
+    final shutterHorizontal = shutterOnRight ? 1.0 : -1.0;
+    final controlHorizontal = -shutterHorizontal;
     return SafeArea(
       child: Stack(
         children: [
           Align(
-            alignment: Alignment.topCenter,
+            alignment: Alignment(shutterHorizontal, -1),
             child: Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(12),
               child: IconButton.filledTonal(
                 tooltip: 'Back',
                 onPressed: onBack,
