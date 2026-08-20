@@ -5,7 +5,7 @@ This document tracks the implementation as the package evolves. Update it with e
 ## 0.1 Capture foundation
 
 ### `lib/dxtr_card_scan.dart`
-The public barrel. Only intended public API is exported from here, including `CaptureOrientationPolicy`.
+The public barrel. Only intended public API is exported from here, including `CaptureOrientationPolicy`, `DxtrCardScanTheme`, `CaptureFrameStyle`, and `ImageCropStyle`.
 
 ### `src/geometry/normalized_rect.dart`
 `NormalizedRect` is the stable geometry primitive. It stores left/top/right/bottom in `[0,1]` space and converts to or from pixel `Rect` values for a known image size.
@@ -19,42 +19,64 @@ The public barrel. Only intended public API is exported from here, including `Ca
 ### `src/frame/capture_frame.dart`
 `CaptureFrame` supports ID-1, arbitrary aspect ratio + width factor, fixed size, or normalized rectangle. Auto-sized frames use `maxHeightFactor` so landscape height is clamped while preserving aspect ratio.
 
-Frame placement is also configurable:
+Frame placement is configurable:
 - `alignment == null` -> historical centered behavior.
-- any Flutter `Alignment` value may be supplied, including `topCenter`, `bottomCenter`, corners, or a custom fractional alignment.
+- any Flutter `Alignment` may be supplied.
 - `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the viewport before alignment is resolved.
 
-For example:
+Auto-size calculations use the post-padding viewport size. `normalizedRect` bypasses alignment because it already specifies position and size directly.
+
+### `src/capture/capture_orientation_policy.dart`
+`CaptureOrientationPolicy` has `any`, `portraitOnly`, and `landscapeOnly`. It is a viewport-level policy and never calls `SystemChrome`.
+
+### `src/capture/card_capture_view.dart`
+`CardCaptureView` composes a host-provided preview and customizable frame without importing a camera plugin.
+
+The widget applies `orientationPolicy` using its actual layout size. In a rejected orientation, preview remains visible, frame is hidden, and controller capture is disabled. `orientationMismatchBuilder` can provide host-specific guidance.
+
+`frameStyle` is now optional. Resolution order is:
+1. explicit `CardCaptureView.frameStyle`;
+2. `DxtrCardScanTheme.of(context).captureFrameStyle`;
+3. default `CaptureFrameStyle` supplied by the theme extension fallback.
+
+### `src/capture/card_capture_controller.dart`
+`CardCaptureController` owns no camera hardware. `setCaptureEnabled(bool)` lets `CardCaptureView` reject captures while orientation policy is unsatisfied without detaching the delegate.
+
+## Theme system
+
+### `src/theme/dxtr_card_scan_theme.dart`
+`DxtrCardScanTheme` is a Flutter `ThemeExtension`. It groups the package-specific visual tokens shared by Camera and Gallery:
+- `captureFrameStyle`
+- `imageCropStyle`
+
+It supports `copyWith`, interpolation through `lerp`, and `DxtrCardScanTheme.of(context)` with a default fallback. Hosts can install it once in `ThemeData.extensions` and both capture surfaces inherit it.
+
+Example:
 
 ```dart
-const CaptureFrame.id1(
-  alignment: Alignment.topCenter,
-  alignmentPadding: EdgeInsets.only(top: 32),
+ThemeData(
+  extensions: const [
+    DxtrCardScanTheme(
+      captureFrameStyle: CaptureFrameStyle(
+        borderColor: Colors.amber,
+        borderWidth: 3,
+      ),
+      imageCropStyle: ImageCropStyle(
+        borderColor: Colors.cyan,
+        handleColor: Colors.orange,
+      ),
+    ),
+  ],
 )
 ```
 
-Auto-size calculations use the post-padding viewport size. This means padding is part of the geometry constraint, not merely a visual translation. `normalizedRect` bypasses alignment because it already specifies position and size directly.
+This package theme is intentionally narrow. AppBars, buttons, icon buttons, text, and other standard Material widgets continue to inherit the host `ThemeData` / `ColorScheme` rather than duplicating Material theming.
 
-### `src/capture/capture_orientation_policy.dart`
-`CaptureOrientationPolicy` has three values:
-- `any`
-- `portraitOnly`
-- `landscapeOnly`
+### `src/frame/capture_frame_style.dart`
+`CaptureFrameStyle` controls Camera guide visuals: border color/width, corner radius, and outside overlay. It supports `copyWith` and interpolation for theme animation.
 
-`allows(Orientation)` is intentionally a viewport-level decision. It does not call `SystemChrome` and does not force the host application's physical orientation.
-
-### `src/capture/card_capture_view.dart`
-`CardCaptureView` composes a host-provided preview and customizable frame without importing a specific camera plugin.
-
-The widget determines portrait/landscape from its actual layout size and applies `orientationPolicy`:
-- allowed -> preview + frame render normally and capture remains enabled;
-- disallowed -> preview remains visible, frame is omitted, controller capture is disabled;
-- optional `orientationMismatchBuilder` can overlay a rotate-device prompt or any host-specific UI.
-
-This separation lets a host choose between a soft policy (show preview but disallow capture) and a hard app-level orientation lock.
-
-### `src/capture/card_capture_controller.dart`
-`CardCaptureController` still owns no camera hardware. It now also has `setCaptureEnabled(bool)` so `CardCaptureView` can reject captures while orientation policy is unsatisfied without detaching the camera delegate.
+### `src/crop/image_crop_style.dart`
+`ImageCropStyle` controls Gallery crop visuals: outside overlay, border color/width, handle fill/border, visible handle size, and gesture hit size. Keeping hit size separate from visible size allows touch ergonomics without forcing large visual handles.
 
 ## 0.1.2 Manual image crop API
 
@@ -64,7 +86,9 @@ This separation lets a host choose between a soft policy (show preview but disal
 ### `src/crop/image_crop_view.dart`
 `ImageCropView` accepts a local image path from the host and resolves intrinsic image dimensions with `FileImage`. `BoxFit.contain` geometry ensures letterbox regions never become part of the crop coordinate system.
 
-The current Gallery crop is freeform: users can move the rectangle and resize from four corners. Gallery does not yet consume `CaptureFrame` constraints; Roadmap tracks optional ratio/preset constraints so hosts can request ID-1 or another ratio while retaining freeform as the default.
+The current Gallery crop is freeform: users can move the rectangle and resize from four corners. Gallery does not yet consume `CaptureFrame` constraints; Roadmap tracks optional ratio/preset constraints while retaining freeform as default.
+
+`style` is optional and follows the same precedence as Camera: per-widget style first, then `DxtrCardScanTheme.imageCropStyle`, then package defaults.
 
 No pixels are rewritten yet. v0.2 will take `imagePath + normalizedRect` and perform actual deterministic crop/preprocessing in Rust.
 
@@ -80,13 +104,13 @@ No pixels are rewritten yet. v0.2 will take `imagePath + normalizedRect` and per
 
 ### Gallery crop page
 
-`GalleryCropPage` is a conventional secondary editor screen with AppBar Back, system Back support, and `Use crop` returning the latest `ImageCropSelection`.
+`GalleryCropPage` is a conventional secondary editor screen with AppBar Back, system Back support, and `Use crop` returning the latest `ImageCropSelection`. Standard controls inherit the example app's Material theme; `ImageCropView` additionally inherits `DxtrCardScanTheme` when installed.
 
 ### Camera preview and controls
 
 `_CoverCameraPreview` uses orientation-aware displayed aspect ratio plus `BoxFit.cover`. Settled portrait/landscape preview geometry has already been validated on device.
 
-Zoom is pinch-only; `_ZoomBadge` shows current scale. Still-photo flash selection is stored independently from temporary torch state.
+Zoom is pinch-only; `_ZoomBadge` shows current scale. Still-photo flash selection is stored independently from temporary torch state. Standard control widgets inherit Material component themes; the scan guide inherits `DxtrCardScanTheme.captureFrameStyle`.
 
 Portrait controls:
 - Back top-left
@@ -119,13 +143,14 @@ CI gates:
 - package unit tests
 - frame alignment/padding tests
 - orientation-policy tests
+- theme extension resolution/interpolation tests
 - example dependency resolution/analyze
 - Android/iOS host generation
 - Android debug APK build
 
 ## Manual validation boundary
 
-The next device pass should cover Home -> Camera -> Back, Home -> Gallery -> picker -> crop -> Use crop, existing flash/torch/pinch zoom, and landscape control placement. New frame placement/orientation APIs should also be sanity-checked when exercised by a host configuration.
+The next device pass should cover Home -> Camera -> Back, Home -> Gallery -> picker -> crop -> Use crop, existing flash/torch/pinch zoom, landscape control placement, and one custom `DxtrCardScanTheme` applied across Camera and Gallery.
 
 ## Next walkthrough section
 
