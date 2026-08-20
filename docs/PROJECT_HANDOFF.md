@@ -20,6 +20,7 @@ Dxtr Card Scan is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/do
 8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but the core package remains camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
 9. File/image picking belongs to the host/example. The package may accept an image path and expose crop geometry, but must not depend on an image picker.
 10. Capture orientation policy must not lock the host application's OS orientation. The package only allows/disallows capture for the current viewport orientation; the host decides whether to call `SystemChrome.setPreferredOrientations`.
+11. Camera and Gallery visuals must inherit from host theming. Package-specific visuals use `DxtrCardScanTheme`; normal Material controls continue to use the host `ThemeData` / `ColorScheme`.
 
 ## Current branch / PR
 
@@ -55,21 +56,7 @@ Implemented foundation:
 - `alignment`
 - `alignmentPadding`
 
-`alignment == null` preserves the original centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and defines an inset viewport before alignment is resolved. Examples:
-
-```dart
-const CaptureFrame.id1(
-  alignment: Alignment.topCenter,
-  alignmentPadding: EdgeInsets.only(top: 32),
-)
-```
-
-```dart
-const CaptureFrame.id1(
-  alignment: Alignment.bottomCenter,
-  alignmentPadding: EdgeInsets.only(bottom: 48),
-)
-```
+`alignment == null` preserves the original centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and defines an inset viewport before alignment is resolved.
 
 For auto-sized frames, width/height are calculated from the viewport after `alignmentPadding` is removed, which prevents large insets from pushing the frame outside the usable area. When `normalizedRect` is supplied, it already defines both size and position, so `alignment` and `alignmentPadding` are ignored.
 
@@ -77,7 +64,7 @@ The example Camera still uses `CaptureFrame.id1(widthFactor: .88, maxHeightFacto
 
 ### Capture orientation contract
 
-`CardCaptureView` now supports:
+`CardCaptureView` supports:
 
 ```dart
 orientationPolicy: CaptureOrientationPolicy.any
@@ -100,7 +87,44 @@ The package does not force OS orientation. A host that wants a physically locked
 Camera and Gallery do not yet expose identical constraints:
 - Camera uses `CaptureFrame` with explicit ratio/size/alignment options.
 - Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing.
-- Gallery should remain capable of freeform cropping, but Roadmap now tracks an optional ratio/preset constraint so hosts can request the same ID-1 or custom ratio used by Camera.
+- Gallery should remain capable of freeform cropping, but Roadmap tracks an optional ratio/preset constraint so hosts can request the same ID-1 or custom ratio used by Camera.
+
+### Theme contract
+
+Package-specific visuals are controlled by `DxtrCardScanTheme`, a Flutter `ThemeExtension`:
+
+```dart
+ThemeData(
+  extensions: const [
+    DxtrCardScanTheme(
+      captureFrameStyle: CaptureFrameStyle(
+        borderColor: Colors.amber,
+        borderWidth: 3,
+        overlayColor: Color(0x66000000),
+      ),
+      imageCropStyle: ImageCropStyle(
+        borderColor: Colors.cyan,
+        handleColor: Colors.orange,
+      ),
+    ),
+  ],
+)
+```
+
+Resolution order:
+1. explicit per-widget style override;
+2. `DxtrCardScanTheme` from nearest `ThemeData.extensions`;
+3. package defaults.
+
+Camera:
+- `CardCaptureView.frameStyle` is optional; null inherits `DxtrCardScanTheme.captureFrameStyle`.
+- `CaptureFrameStyle` controls frame border color/width, corner radius, and outside overlay.
+
+Gallery:
+- `ImageCropView.style` is optional; null inherits `DxtrCardScanTheme.imageCropStyle`.
+- `ImageCropStyle` controls crop overlay, border color/width, handle color/border, visual handle size, and gesture hit size.
+
+Normal example UI such as AppBar, buttons, icon buttons, and text continues to inherit the host Material `ThemeData` / `ColorScheme`; the package does not create a separate app-level theme system.
 
 ## v0.1.1 Camera controls
 
@@ -147,7 +171,7 @@ Package Gallery crop API:
 
 Latest material changes must pass:
 - package analyze
-- package unit tests, including alignment/padding and orientation policy
+- package unit tests, including alignment/padding, orientation policy, and theme resolution/interpolation
 - example dependencies/analyze
 - Android/iOS host scaffolding generation
 - Android debug APK build
@@ -163,6 +187,7 @@ Validate:
 6. Gallery crop on portrait and landscape source images.
 7. If exercising new frame APIs, verify top/bottom alignment with non-zero padding.
 8. If exercising `portraitOnly` or `landscapeOnly`, verify frame disappears and capture is disabled in the disallowed orientation, while preview remains visible.
+9. Apply a custom `DxtrCardScanTheme` and verify both Camera frame and Gallery crop visuals inherit it without per-widget styles.
 
 Do not begin v0.2 until this targeted device pass is complete.
 
