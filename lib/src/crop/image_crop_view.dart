@@ -106,8 +106,10 @@ class _ImageCropViewState extends State<ImageCropView> {
     final dy = details.delta.dy / imageRect.height;
     final width = _selection.width;
     final height = _selection.height;
-    final left = (_selection.left + dx).clamp(0.0, 1.0 - width);
-    final top = (_selection.top + dy).clamp(0.0, 1.0 - height);
+    final left =
+        (_selection.left + dx).clamp(0.0, 1.0 - width).toDouble();
+    final top =
+        (_selection.top + dy).clamp(0.0, 1.0 - height).toDouble();
     _emit(
       NormalizedRect(
         left: left,
@@ -127,14 +129,22 @@ class _ImageCropViewState extends State<ImageCropView> {
     var bottom = _selection.bottom;
 
     if (handle.left) {
-      left = (left + dx).clamp(0.0, right - _minimumFraction);
+      left = (left + dx)
+          .clamp(0.0, right - _minimumFraction)
+          .toDouble();
     } else {
-      right = (right + dx).clamp(left + _minimumFraction, 1.0);
+      right = (right + dx)
+          .clamp(left + _minimumFraction, 1.0)
+          .toDouble();
     }
     if (handle.top) {
-      top = (top + dy).clamp(0.0, bottom - _minimumFraction);
+      top = (top + dy)
+          .clamp(0.0, bottom - _minimumFraction)
+          .toDouble();
     } else {
-      bottom = (bottom + dy).clamp(top + _minimumFraction, 1.0);
+      bottom = (bottom + dy)
+          .clamp(top + _minimumFraction, 1.0)
+          .toDouble();
     }
 
     _emit(
@@ -157,7 +167,8 @@ class _ImageCropViewState extends State<ImageCropView> {
           fitted.destination,
           Offset.zero & viewport,
         );
-        final cropRect = _selection.toRect(imageRect.size).shift(imageRect.topLeft);
+        final cropRect =
+            _selection.toRect(imageRect.size).shift(imageRect.topLeft);
 
         return Stack(
           fit: StackFit.expand,
@@ -168,7 +179,10 @@ class _ImageCropViewState extends State<ImageCropView> {
             ),
             IgnorePointer(
               child: CustomPaint(
-                painter: _CropOverlayPainter(imageRect: imageRect, cropRect: cropRect),
+                painter: _CropOverlayPainter(
+                  imageRect: imageRect,
+                  cropRect: cropRect,
+                ),
               ),
             ),
             Positioned.fromRect(
