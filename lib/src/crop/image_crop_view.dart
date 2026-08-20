@@ -4,7 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../geometry/normalized_rect.dart';
+import '../theme/dxtr_card_scan_theme.dart';
 import 'image_crop_selection.dart';
+import 'image_crop_style.dart';
 
 /// Lets a user move and resize a crop rectangle over an image file.
 ///
@@ -21,6 +23,7 @@ class ImageCropView extends StatefulWidget {
       right: 0.92,
       bottom: 0.92,
     ),
+    this.style,
     super.key,
   });
 
@@ -29,6 +32,11 @@ class ImageCropView extends StatefulWidget {
 
   /// Initial normalized crop rectangle.
   final NormalizedRect initialRect;
+
+  /// Optional per-widget visual override.
+  ///
+  /// When null, [DxtrCardScanTheme.imageCropStyle] is used.
+  final ImageCropStyle? style;
 
   /// Called whenever the user moves or resizes the crop rectangle.
   final ValueChanged<ImageCropSelection> onChanged;
@@ -159,6 +167,8 @@ class _ImageCropViewState extends State<ImageCropView> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final style = widget.style ?? DxtrCardScanTheme.of(context).imageCropStyle;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewport = constraints.biggest;
@@ -169,6 +179,7 @@ class _ImageCropViewState extends State<ImageCropView> {
         );
         final cropRect =
             _selection.toRect(imageRect.size).shift(imageRect.topLeft);
+        final halfHit = style.handleHitSize / 2;
 
         return Stack(
           fit: StackFit.expand,
@@ -182,6 +193,7 @@ class _ImageCropViewState extends State<ImageCropView> {
                 painter: _CropOverlayPainter(
                   imageRect: imageRect,
                   cropRect: cropRect,
+                  style: style,
                 ),
               ),
             ),
@@ -194,14 +206,18 @@ class _ImageCropViewState extends State<ImageCropView> {
             ),
             for (final handle in _CropHandle.values)
               Positioned(
-                left: handle.left ? cropRect.left - 18 : cropRect.right - 18,
-                top: handle.top ? cropRect.top - 18 : cropRect.bottom - 18,
-                width: 36,
-                height: 36,
+                left: handle.left
+                    ? cropRect.left - halfHit
+                    : cropRect.right - halfHit,
+                top: handle.top
+                    ? cropRect.top - halfHit
+                    : cropRect.bottom - halfHit,
+                width: style.handleHitSize,
+                height: style.handleHitSize,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onPanUpdate: (details) => _resize(handle, details, imageRect),
-                  child: const Center(child: _CropHandleDot()),
+                  child: Center(child: _CropHandleDot(style: style)),
                 ),
               ),
           ],
@@ -224,16 +240,18 @@ enum _CropHandle {
 }
 
 class _CropHandleDot extends StatelessWidget {
-  const _CropHandleDot();
+  const _CropHandleDot({required this.style});
+
+  final ImageCropStyle style;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 16,
-      height: 16,
+      width: style.handleSize,
+      height: style.handleSize,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.black54),
+        color: style.handleColor,
+        border: Border.all(color: style.handleBorderColor),
         shape: BoxShape.circle,
       ),
     );
@@ -241,27 +259,34 @@ class _CropHandleDot extends StatelessWidget {
 }
 
 class _CropOverlayPainter extends CustomPainter {
-  const _CropOverlayPainter({required this.imageRect, required this.cropRect});
+  const _CropOverlayPainter({
+    required this.imageRect,
+    required this.cropRect,
+    required this.style,
+  });
 
   final Rect imageRect;
   final Rect cropRect;
+  final ImageCropStyle style;
 
   @override
   void paint(Canvas canvas, Size size) {
     final outside = Path()..addRect(imageRect);
     final inside = Path()..addRect(cropRect);
     final mask = Path.combine(PathOperation.difference, outside, inside);
-    canvas.drawPath(mask, Paint()..color = Colors.black54);
+    canvas.drawPath(mask, Paint()..color = style.overlayColor);
     canvas.drawRect(
       cropRect,
       Paint()
-        ..color = Colors.white
+        ..color = style.borderColor
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = style.borderWidth,
     );
   }
 
   @override
   bool shouldRepaint(_CropOverlayPainter oldDelegate) =>
-      imageRect != oldDelegate.imageRect || cropRect != oldDelegate.cropRect;
+      imageRect != oldDelegate.imageRect ||
+      cropRect != oldDelegate.cropRect ||
+      style != oldDelegate.style;
 }
