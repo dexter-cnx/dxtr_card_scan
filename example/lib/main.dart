@@ -163,44 +163,40 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final orientation = MediaQuery.orientationOf(context);
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          Expanded(
-            child: CardCaptureView(
-              controller: _captureController,
-              frame: const CaptureFrame.id1(
-                widthFactor: .88,
-                maxHeightFactor: .82,
-              ),
-              previewBuilder: (_) => GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onScaleStart: (_) => _zoomAtScaleStart = _zoom,
-                onScaleUpdate: (details) {
-                  if (details.pointerCount >= 2) {
-                    _setZoom(_zoomAtScaleStart * details.scale);
-                  }
-                },
-                child: _CoverCameraPreview(controller: camera),
-              ),
-              onCapture: _capture,
+          CardCaptureView(
+            controller: _captureController,
+            frame: const CaptureFrame.id1(
+              widthFactor: .88,
+              maxHeightFactor: .82,
             ),
+            previewBuilder: (_) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: (_) => _zoomAtScaleStart = _zoom,
+              onScaleUpdate: (details) {
+                if (details.pointerCount >= 2) {
+                  _setZoom(_zoomAtScaleStart * details.scale);
+                }
+              },
+              child: _CoverCameraPreview(controller: camera),
+            ),
+            onCapture: _capture,
           ),
-          SafeArea(
-            top: false,
-            child: _CameraControls(
-              captureController: _captureController,
-              flashMode: _flashMode,
-              torchEnabled: _torchEnabled,
-              minZoom: _minZoom,
-              maxZoom: _maxZoom,
-              zoom: _zoom,
-              lastCapture: _lastCapture,
-              onFlashModeChanged: _setFlashMode,
-              onTorchPressed: _toggleTorch,
-              onZoomChanged: _setZoom,
-            ),
+          _OrientationCameraControls(
+            orientation: orientation,
+            captureController: _captureController,
+            flashMode: _flashMode,
+            torchEnabled: _torchEnabled,
+            zoom: _zoom,
+            lastCapture: _lastCapture,
+            onFlashModeChanged: _setFlashMode,
+            onTorchPressed: _toggleTorch,
           ),
         ],
       ),
@@ -239,109 +235,212 @@ class _CoverCameraPreview extends StatelessWidget {
   }
 }
 
-class _CameraControls extends StatelessWidget {
-  const _CameraControls({
+class _OrientationCameraControls extends StatelessWidget {
+  const _OrientationCameraControls({
+    required this.orientation,
     required this.captureController,
     required this.flashMode,
     required this.torchEnabled,
-    required this.minZoom,
-    required this.maxZoom,
     required this.zoom,
     required this.lastCapture,
     required this.onFlashModeChanged,
     required this.onTorchPressed,
-    required this.onZoomChanged,
   });
 
+  final Orientation orientation;
   final CardCaptureController captureController;
   final FlashMode flashMode;
   final bool torchEnabled;
-  final double minZoom;
-  final double maxZoom;
   final double zoom;
   final XFile? lastCapture;
   final ValueChanged<FlashMode> onFlashModeChanged;
   final VoidCallback onTorchPressed;
-  final ValueChanged<double> onZoomChanged;
 
   @override
   Widget build(BuildContext context) {
-    final sliderMax = maxZoom > minZoom ? maxZoom : minZoom + 0.01;
-
-    return Material(
-      color: Colors.black,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    if (orientation == Orientation.portrait) {
+      return SafeArea(
+        child: Stack(
           children: [
-            Row(
-              children: [
-                IconButton(
-                  tooltip: torchEnabled ? 'Torch off' : 'Torch on',
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: _FlashMenu(
+                  flashMode: flashMode,
+                  onChanged: onFlashModeChanged,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 18),
+                child: _ZoomBadge(zoom: zoom),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: _TorchButton(
+                  enabled: torchEnabled,
                   onPressed: onTorchPressed,
-                  icon: Icon(
-                    torchEnabled ? Icons.flashlight_on : Icons.flashlight_off,
-                  ),
                 ),
-                PopupMenuButton<FlashMode>(
-                  tooltip: 'Flash mode',
-                  initialValue: flashMode,
-                  onSelected: onFlashModeChanged,
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: FlashMode.off,
-                      child: Text('Flash off'),
-                    ),
-                    PopupMenuItem(
-                      value: FlashMode.auto,
-                      child: Text('Flash auto'),
-                    ),
-                    PopupMenuItem(
-                      value: FlashMode.always,
-                      child: Text('Flash on'),
-                    ),
-                  ],
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(_flashIcon(flashMode)),
-                  ),
-                ),
-                Expanded(
-                  child: Slider(
-                    min: minZoom,
-                    max: sliderMax,
-                    value: zoom.clamp(minZoom, sliderMax).toDouble(),
-                    onChanged: maxZoom > minZoom ? onZoomChanged : null,
-                  ),
-                ),
-                SizedBox(
-                  width: 48,
-                  child: Text('${zoom.toStringAsFixed(1)}×'),
-                ),
-              ],
+              ),
             ),
-            Row(
-              children: [
-                if (lastCapture case final capture?)
-                  Expanded(
-                    child: Text(
-                      capture.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  )
-                else
-                  const Spacer(),
-                FloatingActionButton.large(
-                  onPressed: () => captureController.capture(),
-                  child: const Icon(Icons.camera_alt),
-                ),
-                const Spacer(),
-              ],
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: _ShutterButton(captureController: captureController),
+              ),
             ),
+            if (lastCapture case final capture?)
+              Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 100, 22),
+                  child: Text(
+                    capture.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
           ],
         ),
+      );
+    }
+
+    final deviceOrientation = MediaQuery.of(context).orientation;
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final physicalBottomIsLeft = viewPadding.left > viewPadding.right;
+    final shutterAlignment =
+        physicalBottomIsLeft ? Alignment.centerLeft : Alignment.centerRight;
+    final controlsAlignment =
+        physicalBottomIsLeft ? Alignment.centerRight : Alignment.centerLeft;
+
+    return SafeArea(
+      child: Stack(
+        children: [
+          Align(
+            alignment: shutterAlignment,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: _ShutterButton(captureController: captureController),
+            ),
+          ),
+          Align(
+            alignment: controlsAlignment,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _FlashMenu(
+                    flashMode: flashMode,
+                    onChanged: onFlashModeChanged,
+                  ),
+                  const SizedBox(height: 12),
+                  _ZoomBadge(zoom: zoom),
+                  const SizedBox(height: 12),
+                  _TorchButton(
+                    enabled: torchEnabled,
+                    onPressed: onTorchPressed,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (lastCapture case final capture?)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(100, 0, 100, 8),
+                child: Text(
+                  capture.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShutterButton extends StatelessWidget {
+  const _ShutterButton({required this.captureController});
+
+  final CardCaptureController captureController;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.large(
+      onPressed: () => captureController.capture(),
+      child: const Icon(Icons.camera_alt),
+    );
+  }
+}
+
+class _ZoomBadge extends StatelessWidget {
+  const _ZoomBadge({required this.zoom});
+
+  final double zoom;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Text('${zoom.toStringAsFixed(1)}×'),
+      ),
+    );
+  }
+}
+
+class _TorchButton extends StatelessWidget {
+  const _TorchButton({required this.enabled, required this.onPressed});
+
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      tooltip: enabled ? 'Torch off' : 'Torch on',
+      onPressed: onPressed,
+      icon: Icon(enabled ? Icons.flashlight_on : Icons.flashlight_off),
+    );
+  }
+}
+
+class _FlashMenu extends StatelessWidget {
+  const _FlashMenu({required this.flashMode, required this.onChanged});
+
+  final FlashMode flashMode;
+  final ValueChanged<FlashMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<FlashMode>(
+      tooltip: 'Flash mode',
+      initialValue: flashMode,
+      onSelected: onChanged,
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: FlashMode.off, child: Text('Flash off')),
+        PopupMenuItem(value: FlashMode.auto, child: Text('Flash auto')),
+        PopupMenuItem(value: FlashMode.always, child: Text('Flash on')),
+      ],
+      child: IconButton.filledTonal(
+        onPressed: null,
+        icon: Icon(_flashIcon(flashMode)),
       ),
     );
   }
