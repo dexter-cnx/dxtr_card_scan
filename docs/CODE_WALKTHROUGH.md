@@ -58,11 +58,13 @@ Library loading:
 `android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and uses the NDK compiler supplied by CMake as Cargo's linker. Cargo builds the Rust staticlib; CMake force-links it into `libdxtr_card_scan_processor.so` so exported C ABI symbols remain available to Dart FFI. No binary is committed.
 
 ### iOS / macOS
-The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. The script phase declares the generated archive as an Xcode output, and consumer-target `OTHER_LDFLAGS -force_load` keeps the Rust C ABI symbols from being stripped.
+The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. The script phase declares the generated archive as an Xcode output. `OTHER_LDFLAGS -force_load` is applied to the plugin Pod target itself, so the same target that owns the Rust build phase consumes the generated archive before the host Runner links the plugin product.
+
+This avoids Runner-level generated-file ordering failures such as `Build input file cannot be found ... libdxtr_card_scan_processor.a`.
 
 ## Integrated example structure
 
-`example/lib/integrated_card_scan_demo.dart` is the default entrypoint and now only owns app/home navigation.
+`example/lib/integrated_card_scan_demo.dart` is the default entrypoint and owns app/home navigation.
 
 Dedicated files:
 - `camera_scan_page.dart` — Camera UI + capture-frame flow
@@ -76,7 +78,7 @@ Dedicated files:
 1. image decode + EXIF `bakeOrientation()` + normalized JPEG write
 2. synchronous Dart FFI -> Rust processor execution
 
-This keeps Flutter animation/input responsive while decoding, detecting, warping, and encoding.
+Normalized/intermediate JPEGs are written under `Directory.systemTemp`, not beside the source image. This keeps macOS sandbox-selected files read-only and avoids write-permission failures in user folders.
 
 ## Integrated Camera flow
 
@@ -91,27 +93,30 @@ Camera processing sequence:
 8. run auto-detect and perspective warp only inside the frame ROI
 9. apply OCR enhancement and render the processed bytes
 
-Physical Android re-test passed this Camera flow, including orientation, frame ROI/warp behavior and controls.
+Physical Android re-test passed orientation, frame ROI/warp behavior, zoom/flash/torch controls, and processed preview. Physical iPhone 11 validation also passed Camera capture, native linkage, FFI processing, and output rendering.
 
 ## Gallery flow
 
 Gallery sequence:
-1. host picker returns an image
+1. Android/iOS use `image_picker`; macOS uses `file_selector` / native open panel
 2. UI immediately shows `Preparing image…`
 3. image decode + EXIF orientation bake runs on a worker isolate
-4. `ImageCropView` displays that normalized file, so its ROI and Rust pixels use the same coordinate space
-5. the Gallery route uses `PopScope` to block device/system back gestures while cropping; leaving is explicit through Close
-6. `Scan selection` sends the selected ROI to a worker isolate
-7. Rust crops ROI, auto-detects card edges inside it, perspective-warps the card, resizes/encodes, and returns JPEG bytes
-8. Gallery preview preserves color by default; OCR enhancement remains optional rather than being forced on the scan preview
+4. the normalized image is written to temporary storage
+5. `ImageCropView` displays that normalized file, so its ROI and Rust pixels use the same coordinate space
+6. the Gallery route uses `PopScope` to block device/system back gestures while cropping; leaving is explicit through Close
+7. `Scan selection` sends the selected ROI to a worker isolate
+8. Rust crops ROI, auto-detects card edges inside it, perspective-warps the card, resizes/encodes, and returns JPEG bytes
+9. Gallery preview preserves color by default; OCR enhancement remains optional
 
 The crop should include the whole card so the detector still sees all four card edges inside the selected ROI.
+
+Physical validation passed this flow on Android, iPhone 11, and macOS. macOS specifically validated folder browsing/file selection, sandbox-safe temporary normalization, native linkage, FFI processing, perspective correction, and processed preview.
 
 ## Validation tooling
 
 `make install-hooks` installs the tracked pre-push guard. `make ci` covers Flutter gates plus Rust format, Clippy, and tests. PR #7 builds the default Android example as an arm64 Gradle -> CMake -> Cargo -> APK integration gate.
 
-Generated build state such as `android/.cxx/` and `rust/target/` is ignored. `rust/Cargo.lock` remains committed for reproducible embedded native builds.
+Generated build state such as `android/.cxx/`, generated example platform hosts, and `rust/target/` is ignored. `rust/Cargo.lock` remains committed for reproducible embedded native builds.
 
 ## Naming rule
 
@@ -124,7 +129,7 @@ Generated build state such as `android/.cxx/` and `rust/target/` is ignored. `ru
 - PR #4 deterministic quad detection merged.
 - PR #5 perspective warp/OCR enhancement merged.
 - PR #6 Dart FFI/native packaging merged.
-- PR #7 Android Camera physical validation passed after orientation/frame-ROI fixes.
-- PR #7 iPhone 11 physical Camera/native-processing validation passed.
-- Updated isolate-backed Gallery flow awaits Android/iPhone re-test.
-- macOS native linkage remains to be validated.
+- PR #7 Android Camera + Gallery physical validation passed.
+- PR #7 iPhone 11 Camera + Gallery physical validation passed.
+- PR #7 macOS Gallery/native-linkage validation passed.
+- Remaining v0.2 gate: final CI/review, merge PR #7, record merge SHA, close milestone.
