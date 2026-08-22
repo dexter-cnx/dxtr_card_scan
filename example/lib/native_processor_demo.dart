@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as image_lib;
 import 'package:image_picker/image_picker.dart';
 
 Future<void> main() async {
@@ -78,18 +80,45 @@ class NativeCameraPage extends StatefulWidget {
   State<NativeCameraPage> createState() => _NativeCameraPageState();
 }
 
-class _NativeCameraPageState extends State<NativeCameraPage> {
+class _NativeCameraPageState extends State<NativeCameraPage>
+    with WidgetsBindingObserver {
   CameraController? _camera;
+  bool _initializing = false;
   bool _busy = false;
   Object? _error;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _initialize();
+      return;
+    }
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _releaseCamera();
+    }
+  }
+
+  Future<void> _releaseCamera() async {
+    final camera = _camera;
+    _camera = null;
+    if (mounted) setState(() {});
+    await camera?.dispose();
+  }
+
   Future<void> _initialize() async {
+    if (_initializing || _camera != null || widget.cameras.isEmpty) return;
+    _initializing = true;
+
     final back = widget.cameras.where(
       (camera) => camera.lensDirection == CameraLensDirection.back,
     );
@@ -99,22 +128,29 @@ class _NativeCameraPageState extends State<NativeCameraPage> {
       ResolutionPreset.high,
       enableAudio: false,
     );
+
     try {
       await controller.initialize();
-      if (!mounted) {
+      if (!mounted ||
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         await controller.dispose();
         return;
       }
-      setState(() => _camera = controller);
+      setState(() {
+        _camera = controller;
+        _error = null;
+      });
     } catch (error) {
       await controller.dispose();
       if (mounted) setState(() => _error = error);
+    } finally {
+      _initializing = false;
     }
   }
 
   Future<void> _captureAndProcess() async {
     final camera = _camera;
-    if (camera == null || _busy) return;
+    if (camera == null || _busy || !camera.value.isInitialized) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -150,6 +186,7 @@ class _NativeCameraPageState extends State<NativeCameraPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _camera?.dispose();
     super.dispose();
   }
@@ -209,24 +246,60 @@ class NativeGalleryPage extends StatefulWidget {
 
 class _NativeGalleryPageState extends State<NativeGalleryPage> {
   ImageCropSelection? _selection;
+  File? _normalizedImage;
   bool _busy = false;
   Object? _error;
 
   Future<void> _pick() async {
-    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (image == null || !mounted) return;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (picked == null || !mounted) return;
+
     setState(() {
-      _selection = ImageCropSelection(
-        imagePath: image.path,
-        normalizedRect: const NormalizedRect(
-          left: 0.08,
-          top: 0.08,
-          right: 0.92,
-          bottom: 0.92,
-        ),
-      );
+      _busy = true;
       _error = null;
     });
+
+    try {
+      final normalized = await _normalizeOrientation(picked);
+      final previous = _normalizedImage;
+      if (!mounted) {
+        await normalized.delete().catchError((_) => normalized);
+        return;
+      }
+      setState(() {
+        _normalizedImage = normalized;
+        _selection = ImageCropSelection(
+          imagePath: normalized.path,
+          normalizedRect: const NormalizedRect(
+            left: 0.08,
+            top: 0.08,
+            right: 0.92,
+            bottom: 0.92,
+          ),
+        );
+      });
+      if (previous != null && await previous.exists()) {
+        await previous.delete();
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<File> _normalizeOrientation(XFile picked) async {
+    final sourceBytes = await picked.readAsBytes();
+    final decoded = image_lib.decodeImage(sourceBytes);
+    if (decoded == null) {
+      throw StateError('Could not decode the selected image.');
+    }
+    final normalized = image_lib.bakeOrientation(decoded);
+    final encoded = image_lib.encodeJpg(normalized, quality: 95);
+    final directory = await Directory.systemTemp.createTemp('card_scan_gallery_');
+    final file = File('${directory.path}/normalized.jpg');
+    await file.writeAsBytes(encoded, flush: true);
+    return file;
   }
 
   Future<void> _process() async {
@@ -264,6 +337,16 @@ class _NativeGalleryPageState extends State<NativeGalleryPage> {
   }
 
   @override
+  void dispose() {
+    final normalized = _normalizedImage;
+    if (normalized != null) {
+      normalized.delete().ignore();
+      normalized.parent.delete().ignore();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final selection = _selection;
     return Scaffold(
@@ -272,7 +355,11 @@ class _NativeGalleryPageState extends State<NativeGalleryPage> {
         children: [
           Expanded(
             child: selection == null
-                ? const Center(child: Text('Pick an image to begin.'))
+                ? Center(
+                    child: _busy
+                        ? const CircularProgressIndicator()
+                        : const Text('Pick an image to begin.'),
+                  )
                 : ImageCropView(
                     imagePath: selection.imagePath,
                     initialRect: selection.normalizedRect,
