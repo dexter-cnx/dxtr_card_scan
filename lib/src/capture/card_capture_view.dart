@@ -148,6 +148,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       return;
     }
     _initializing = true;
+    CameraController? controller;
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
@@ -157,7 +158,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         (camera) => camera.lensDirection == CameraLensDirection.back,
       );
       final description = back.isEmpty ? cameras.first : back.first;
-      final controller = CameraController(
+      controller = CameraController(
         description,
         widget.resolutionPreset,
         enableAudio: false,
@@ -169,16 +170,22 @@ class _CardCaptureViewState extends State<CardCaptureView>
       if (!mounted ||
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         await controller.dispose();
+        controller = null;
         return;
       }
+      final readyController = controller;
       setState(() {
-        _camera = controller;
+        _camera = readyController;
         _error = null;
+        _flashMode = FlashMode.off;
+        _torchEnabled = false;
         _minZoom = minZoom;
         _maxZoom = maxZoom;
         _zoom = minZoom;
       });
+      controller = null;
     } catch (error) {
+      await controller?.dispose();
       if (mounted) setState(() => _error = error);
     } finally {
       _initializing = false;
