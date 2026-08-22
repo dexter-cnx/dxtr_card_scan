@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../geometry/normalized_rect.dart';
-import '../theme/dxtr_card_scan_theme.dart';
+import '../theme/card_scan_theme.dart';
 import 'image_crop_selection.dart';
 import 'image_crop_style.dart';
 
@@ -35,7 +35,7 @@ class ImageCropView extends StatefulWidget {
 
   /// Optional per-widget visual override.
   ///
-  /// When null, [DxtrCardScanTheme.imageCropStyle] is used.
+  /// When null, [CardScanTheme.imageCropStyle] is used.
   final ImageCropStyle? style;
 
   /// Called whenever the user moves or resizes the crop rectangle.
@@ -167,7 +167,7 @@ class _ImageCropViewState extends State<ImageCropView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final style = widget.style ?? DxtrCardScanTheme.of(context).imageCropStyle;
+    final style = widget.style ?? CardScanTheme.of(context).imageCropStyle;
 
     return LayoutBuilder(
       builder: (context, constraints) {
