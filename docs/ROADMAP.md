@@ -22,6 +22,7 @@
 - [x] deterministic quadrilateral detection/scoring
 - [x] flat-image and 45-degree regressions
 - [x] deterministic perspective warp/crop
+- [x] source-top-preserving warp orientation
 - [x] bounded warp output size
 - [x] optional OCR-oriented enhancement
 - [x] optional resize
@@ -35,10 +36,14 @@
 - [x] iOS native linkage validation
 - [x] macOS native linkage validation
 - [x] dedicated Camera/Gallery native processor validation example
-- [x] Android/iPhone physical-device validation of native processor flow
+- [x] isolate-backed image preparation/native processing
+- [x] Android physical Camera + Gallery validation
+- [x] iPhone physical Camera + Gallery validation
 - [x] macOS Gallery/native processor validation
 - [x] record v0.2 validation evidence
-- [ ] merge PR #7 and close milestone
+- [x] merge PR #7 and close v0.2
+
+v0.2 closed on 2026-08-22. PR #7 merged as `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5` after CI and Android/iPhone/macOS validation passed.
 
 ## 0.3 Quality analysis
 - [ ] blur score
