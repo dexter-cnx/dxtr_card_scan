@@ -19,6 +19,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 7. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
 8. v0.2 detection remains deterministic classical CV.
 9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
+10. Camera detection should be constrained by the capture-frame ROI before auto-detect so unrelated high-contrast background edges do not dominate quadrilateral selection.
 
 ## Current branch / PR
 
@@ -57,29 +58,43 @@ Merged as PR #6. Includes:
 - Flutter >=3.22 compatibility retained with AGP 7.4.2
 - processor option JSON contract tests
 
-## v0.2 PR5 — end-to-end native example validation
+## v0.2 PR5 — integrated native flow
 
 **In progress on `agent/v0.2-example-native-flow` as PR #7.**
 
-Current implementation:
-- dedicated `example/lib/native_processor_demo.dart` entrypoint
-- Camera path: capture -> `CardScanProcessor.processFile()` -> auto-detect -> perspective warp -> OCR enhancement -> processed preview
-- Camera validation page mirrors production lifecycle handling with `WidgetsBindingObserver`: release on inactive/paused/detached/hidden and recreate on resume
-- Gallery path: host image picker -> EXIF orientation baked into a temporary JPEG -> `ImageCropView` -> normalized ROI -> native processing -> processed preview
-- baking EXIF orientation before both display and processing ensures Gallery ROI coordinates refer to the same physical pixel layout, including mirrored EXIF orientations
-- native errors are surfaced directly in the example for device validation
-- CI builds the native validation entrypoint for Android arm64 so Dart FFI usage and Rust plugin packaging are both retained in the APK
+Physical Android validation already proved:
+- Rust native library loads on device
+- Dart FFI calls Rust successfully
+- Rust decode/process/encode returns bytes
+- Flutter renders the processed bytes
+
+The first physical Camera run exposed two integration issues rather than an FFI failure:
+1. Camera JPEG orientation metadata was not normalized before Rust decode, producing an upside-down output.
+2. Whole-frame auto detection could select strong background geometry and warp an otherwise straight card.
+
+Current fix:
+- default `flutter run` now opens `example/lib/integrated_card_scan_demo.dart`
+- Camera uses the existing `CardCaptureView` / ID-1 frame
+- zoom, flash off/auto/on, torch, orientation-aware shutter placement, Back, lifecycle handling, and theme support remain available
+- captured JPEG is decoded and `bakeOrientation()` is applied before processing
+- the resolved capture frame is mapped through `PreviewGeometry` into normalized source-image ROI coordinates
+- Rust auto-detect/warp runs only inside that frame-derived ROI
+- OCR enhancement and processed preview follow the warp
+- Gallery also normalizes EXIF orientation before crop/processing so UI ROI and raw pixels share one coordinate system
 
 ## Remaining before v0.2 completion
 
-1. CI/analyze/build cleanup for the native validation entrypoint.
-2. Validate iOS and macOS native linkage on Apple toolchains.
-3. Physical-device test of Camera auto-detect/warp and Gallery ROI processing, including a portrait EXIF-oriented Gallery JPEG.
-4. Record validation evidence and close v0.2.
+1. CI/analyze/Android-build cleanup for the integrated example.
+2. Re-test Android physical Camera output: orientation, frame ROI, warp correctness, zoom/flash/torch.
+3. Re-test Gallery ROI processing including portrait EXIF-oriented images.
+4. Validate iOS and macOS native linkage on Apple toolchains.
+5. Record final validation evidence and close v0.2.
 
 ## Native build policy
 
 The package keeps Flutter >=3.22 compatibility, so native packaging uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
+
+Generated native build state such as `android/.cxx/` and `rust/target/` is ignored. `rust/Cargo.lock` should remain committed because Rust is an embedded native implementation and reproducible dependency resolution is desirable.
 
 `make install-hooks` installs the tracked pre-push guard. It runs Dart/Rust formatting and Rust validation locally before push.
 
