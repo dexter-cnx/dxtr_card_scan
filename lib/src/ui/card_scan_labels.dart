@@ -30,11 +30,14 @@ class CardCaptureLabels {
   final String retakeAction;
 }
 
-/// User-visible strings for the package-owned Gallery crop surface.
+/// User-visible strings for the package-owned Gallery picker/crop surface.
 class GalleryCropLabels {
   const GalleryCropLabels({
     this.title = 'Gallery crop',
     this.closeTooltip = 'Close',
+    this.emptyMessage = 'Pick an image to begin.',
+    this.pickAction = 'Pick image',
+    this.pickAnotherAction = 'Pick another',
     this.instruction =
         'Keep the whole card inside the crop. The processor will detect the card edges and correct perspective inside this area.',
     this.preparing = 'Preparing image…',
@@ -48,6 +51,9 @@ class GalleryCropLabels {
 
   final String title;
   final String closeTooltip;
+  final String emptyMessage;
+  final String pickAction;
+  final String pickAnotherAction;
   final String instruction;
   final String preparing;
   final String processing;
