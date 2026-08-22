@@ -1,6 +1,10 @@
 use std::{ffi::CString, panic::AssertUnwindSafe, ptr};
 
-use crate::{model::ProcessorOptions, processor::process_encoded};
+use crate::{
+    detection::{detect_card_quad, DetectionOptions},
+    model::ProcessorOptions,
+    processor::process_encoded,
+};
 
 const STATUS_OK: i32 = 0;
 const STATUS_INVALID_ARGUMENT: i32 = 1;
@@ -42,16 +46,6 @@ impl CardScanResult {
     }
 }
 
-/// Processes an encoded image and returns an owned result allocated by Rust.
-///
-/// # Safety
-///
-/// `input_ptr` must point to at least `input_len` readable bytes for the duration of this call.
-/// When `options_json_len` is greater than zero, `options_json_ptr` must point to at least
-/// `options_json_len` readable bytes containing UTF-8 JSON for the duration of this call.
-/// A null `options_json_ptr` is permitted only when `options_json_len` is zero.
-/// The returned pointer, when non-null, is owned by Rust and must be released exactly once with
-/// [`card_scan_result_free`]. Callers must not free or mutate `data_ptr` or `error_ptr` separately.
 #[no_mangle]
 pub unsafe extern "C" fn card_scan_process(
     input_ptr: *const u8,
@@ -90,13 +84,59 @@ pub unsafe extern "C" fn card_scan_process(
     execution.unwrap_or_else(|_| CardScanResult::error(STATUS_PANIC, "Rust processor panicked"))
 }
 
-/// Releases a result returned by [`card_scan_process`] and all buffers owned by that result.
-///
-/// # Safety
-///
-/// `result_ptr` must either be null or be a pointer returned by [`card_scan_process`] that has not
-/// already been passed to this function. After this call returns, `result_ptr` and all pointers
-/// stored inside the result are invalid and must not be read, written, or freed again.
+#[no_mangle]
+pub unsafe extern "C" fn card_scan_detect(
+    input_ptr: *const u8,
+    input_len: usize,
+) -> *mut CardScanResult {
+    let execution = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        if input_ptr.is_null() || input_len == 0 {
+            return CardScanResult::error(STATUS_INVALID_ARGUMENT, "input image is empty");
+        }
+
+        let input = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
+        let image = match image::load_from_memory(input) {
+            Ok(image) => image,
+            Err(error) => {
+                return CardScanResult::error(
+                    STATUS_PROCESSING_ERROR,
+                    format!("unable to decode image: {error}"),
+                );
+            }
+        };
+
+        let value = detect_card_quad(&image, DetectionOptions::default()).map(|result| {
+            let corners = result
+                .quad
+                .corners
+                .iter()
+                .map(|point| serde_json::json!({"x": point.x, "y": point.y}))
+                .collect::<Vec<_>>();
+            serde_json::json!({
+                "quad": {"corners": corners},
+                "score": {
+                    "total": result.score.total,
+                    "area": result.score.area,
+                    "rectangularity": result.score.rectangularity,
+                    "aspect_ratio": result.score.aspect_ratio,
+                    "alignment": result.score.alignment,
+                    "edge_strength": result.score.edge_strength,
+                }
+            })
+        });
+
+        match serde_json::to_vec(&value) {
+            Ok(data) => CardScanResult::success(data),
+            Err(error) => CardScanResult::error(
+                STATUS_PROCESSING_ERROR,
+                format!("unable to encode detection result: {error}"),
+            ),
+        }
+    }));
+
+    execution.unwrap_or_else(|_| CardScanResult::error(STATUS_PANIC, "Rust detector panicked"))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn card_scan_result_free(result_ptr: *mut CardScanResult) {
     if result_ptr.is_null() {
@@ -127,6 +167,15 @@ mod tests {
         assert!(!result.error_ptr.is_null());
         let message = unsafe { CStr::from_ptr(result.error_ptr) }.to_string_lossy();
         assert!(message.contains("empty"));
+        unsafe { card_scan_result_free(result_ptr) };
+    }
+
+    #[test]
+    fn detect_rejects_empty_input_without_panicking() {
+        let result_ptr = unsafe { card_scan_detect(ptr::null(), 0) };
+        let result = unsafe { &*result_ptr };
+        assert_eq!(result.status, STATUS_INVALID_ARGUMENT);
+        assert!(!result.error_ptr.is_null());
         unsafe { card_scan_result_free(result_ptr) };
     }
 }
