@@ -7,13 +7,14 @@ tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 flutter create "$tmp_dir/host" \
-  --platforms=android,ios \
+  --platforms=android,ios,macos \
   --project-name=dxtr_card_scan_example \
   --org=dev.cnxdev
 
-rm -rf "$example_dir/android" "$example_dir/ios"
+rm -rf "$example_dir/android" "$example_dir/ios" "$example_dir/macos"
 cp -R "$tmp_dir/host/android" "$example_dir/android"
 cp -R "$tmp_dir/host/ios" "$example_dir/ios"
+cp -R "$tmp_dir/host/macos" "$example_dir/macos"
 
 python3 - "$example_dir/ios/Runner/Info.plist" <<'PY'
 import plistlib
@@ -52,4 +53,18 @@ else:
 path.write_text(text)
 PY
 
-echo "Generated example Android/iOS host scaffolding with iOS development team ZTM9BCJPY9."
+python3 - \
+  "$example_dir/macos/Runner/DebugProfile.entitlements" \
+  "$example_dir/macos/Runner/Release.entitlements" <<'PY'
+import plistlib
+import sys
+
+for path in sys.argv[1:]:
+    with open(path, 'rb') as f:
+        data = plistlib.load(f)
+    data['com.apple.security.files.user-selected.read-only'] = True
+    with open(path, 'wb') as f:
+        plistlib.dump(data, f, sort_keys=False)
+PY
+
+echo "Generated example Android/iOS/macOS host scaffolding with iOS development team ZTM9BCJPY9."
