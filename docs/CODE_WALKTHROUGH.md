@@ -10,107 +10,71 @@ The public barrel. `dxtr_card_scan` is the package/library name; public Dart typ
 ### Geometry
 `NormalizedRect` is the stable `[0,1]` geometry primitive. `CapturedImageTransform` maps displayed normalized geometry back to raw captured-image coordinates, including rotation and horizontal mirroring. `PreviewGeometry` handles `BoxFit.cover` preview-to-source mapping before applying that transform.
 
-### `src/frame/capture_frame.dart`
-`CaptureFrame` supports ID-1, arbitrary aspect ratio + width factor, fixed size, or normalized rectangle. Auto-sized frames use `maxHeightFactor` and support optional `alignment` plus `alignmentPadding`.
+### Capture/theme/gallery
+`CaptureFrame` supports ratio, size, alignment, and alignment padding. `CaptureOrientationPolicy` rejects capture without locking host orientation. `CardScanTheme` owns package-specific Camera/Gallery visuals while standard controls continue to inherit host Material theming. `ImageCropView` accepts a host-provided path and returns normalized source-image geometry.
 
-`alignment == null` preserves centered behavior. `alignmentPadding` deflates the usable viewport before alignment and auto-size calculations, so top/bottom/side positioning can keep a configurable pitch from screen edges.
+## 0.2 Rust processing
 
-### `src/capture/capture_orientation_policy.dart`
-`CaptureOrientationPolicy` supports `any`, `portraitOnly`, and `landscapeOnly`. It is a capture-surface policy only and never locks host OS orientation.
+### `rust/`
+The Rust crate is the deterministic image-processing boundary. It builds as `cdylib`, `staticlib`, and `rlib` and intentionally does not own camera lifecycle or OCR.
 
-### `src/capture/card_capture_view.dart`
-`CardCaptureView` remains camera-plugin agnostic. In a disallowed orientation the preview stays visible, the frame is hidden, and controller capture is disabled. `orientationMismatchBuilder` can render host guidance.
+### `rust/src/model.rs`
+`ProcessorOptions` describes orientation, ROI, grayscale, resize, and output encoding. Camera and Gallery both cross the Rust boundary using normalized source-image geometry.
 
-Frame style precedence is:
-1. explicit `CardCaptureView.frameStyle`;
-2. `CardScanTheme.of(context).captureFrameStyle`;
-3. package defaults.
+ROI handling is pixel-stable: normalized raw ROI bounds are quantized once into integer half-open pixel coordinates, then those integer bounds are rotated exactly. This avoids floating-point complement drift at recurring normalized fractions such as `1/3`.
 
-### `src/capture/card_capture_controller.dart`
-`CardCaptureController` owns no camera hardware. `setCaptureEnabled(bool)` allows orientation policy to reject capture without detaching the camera delegate.
+### `rust/src/processor.rs`
+The current encoded-image pipeline is:
+1. decode JPEG/PNG
+2. normalize orientation
+3. map/crop optional raw ROI
+4. optional grayscale
+5. optional no-upscale max-dimension resize
+6. JPEG/PNG encode
 
-## Theme system
+Perspective correction is intentionally not part of this path yet.
 
-### `src/theme/card_scan_theme.dart`
-`CardScanTheme` is the package `ThemeExtension`. Public class names do not repeat the `dxtr_card_scan` package prefix.
+### `rust/src/ffi.rs`
+The C ABI accepts encoded input bytes and UTF-8 JSON options. Results use explicit Rust-owned buffers and must be released with `card_scan_result_free`. Panics are contained before crossing the FFI boundary. Public unsafe functions document pointer/lifetime/ownership requirements in `# Safety` sections and CI runs Clippy with warnings denied.
 
-It groups:
-- `captureFrameStyle`
-- `imageCropStyle`
-- `cameraControlsStyle`
+### `rust/src/detection.rs`
+PR2 adds deterministic classical-CV quadrilateral detection without introducing OpenCV, ML, or another native CV dependency.
 
-It supports `copyWith`, `lerp`, and `CardScanTheme.of(context)` with a default fallback.
+Detection stages:
+1. convert source to grayscale working image
+2. deterministic 3x3 box blur
+3. Sobel gradient magnitude
+4. adaptive threshold from gradient mean plus configurable standard-deviation multiplier
+5. group edge pixels using 8-connected components
+6. extract a convex hull for each viable component
+7. approximate a four-corner quadrilateral using hull extrema
+8. score each candidate and return the highest-scoring one
 
-```dart
-ThemeData(
-  extensions: const [
-    CardScanTheme(
-      captureFrameStyle: CaptureFrameStyle(
-        borderColor: Colors.amber,
-        borderWidth: 3,
-      ),
-      imageCropStyle: ImageCropStyle(
-        borderColor: Colors.cyan,
-        handleColor: Colors.orange,
-      ),
-      cameraControlsStyle: CameraControlsStyle(
-        shutterSize: 92,
-        activeControlBackgroundColor: Colors.amber,
-      ),
-    ),
-  ],
-)
-```
+`detect_card_quad()` is deliberately separate from `process_encoded()`. It returns `DetectionResult`, containing normalized clockwise corners beginning at top-left plus a `CandidateScore` breakdown.
 
-### `src/frame/capture_frame_style.dart`
-`CaptureFrameStyle` controls Camera guide border, corner radius, and outside overlay.
+Score components are:
+- **area** — candidate coverage relative to source area
+- **rectangularity** — polygon area relative to its axis-aligned bounding rectangle
+- **aspect ratio** — logarithmic similarity against an optional expected ratio; portrait rotation is treated equivalently
+- **alignment** — preference toward the expected image/frame center
+- **edge strength** — average component gradient normalized by strongest source gradient
 
-### `src/crop/image_crop_style.dart`
-`ImageCropStyle` controls Gallery crop overlay, border, handle fill/border, visible handle size, and gesture hit size.
+The initial total uses fixed deterministic weights. These are implementation details for v0.2 and should be tuned against representative fixtures before being considered stable API behavior.
 
-### `src/theme/camera_controls_style.dart`
-`CameraControlsStyle` controls example/host camera-control visuals: shutter size/shape/colors/border, normal and active Flash/Torch/Back colors, and Zoom badge colors. Nullable colors fall back to host `ColorScheme`.
-
-## Manual image crop API
-
-`ImageCropSelection` contains the host-provided image path plus a source-relative `NormalizedRect`.
-
-`ImageCropView` accepts a local image path and resolves intrinsic dimensions with `FileImage`. `BoxFit.contain` geometry ensures letterbox regions never enter crop coordinates. Crop remains freeform for now; Roadmap tracks optional ratio/preset constraints.
-
-Style precedence is per-widget `ImageCropView.style`, then `CardScanTheme.imageCropStyle`, then package defaults.
+Tests cover centered-card detection, small-area rejection, portrait/landscape aspect equivalence, and convex-hull removal of interior points.
 
 ## Example application
 
-`example/lib/main.dart` starts at `ExampleHomePage`:
-- `Camera` -> `CameraCapturePage`
-- `Gallery` -> example-owned `ImagePicker`, then `GalleryCropPage`
-
-`image_picker` is an example dependency only.
-
-Camera preview uses orientation-aware `BoxFit.cover`. Portrait controls are Back top-left, Flash beside it, Zoom top-center, Torch top-right, Shutter bottom-center. Landscape uses device orientation: shutter and Back share one edge, while Flash top / Zoom center / Torch bottom use the opposite edge.
-
-Camera controls resolve `CardScanTheme.cameraControlsStyle`; Gallery crop resolves `CardScanTheme.imageCropStyle`.
+`example/lib/main.dart` starts at `ExampleHomePage` with Camera and Gallery routes. `image_picker` is an example-only dependency. Camera controls remain orientation-aware and themable.
 
 ## Naming rule
 
-`Dxtr`/`dxtr` belongs only to the package/repository identity such as `dxtr_card_scan` and its import path. Dart classes, typedefs, fields, variables, helpers, test names, and UI-facing example labels must use domain names such as `CardScanTheme` rather than package-prefixed names.
+`Dxtr`/`dxtr` belongs only to package/repository identity such as `dxtr_card_scan`. Dart domain classes, fields, helpers, tests, and UI labels remain neutral.
 
 ## Validation status
 
-Automated validation covers package analyze/tests, frame alignment/padding, orientation policy, theme resolution/interpolation, example analyze, generated Android/iOS host setup, and Android debug build.
-
-Physical-device validation passed on 2026-08-22. The validated flow includes:
-- Home -> Camera / Gallery
-- Camera Back in portrait and both landscape orientations
-- Flash / Torch / pinch zoom
-- shutter and camera-control theming
-- frame alignment/padding behavior
-- orientation policy behavior
-- Gallery picker -> crop -> Use crop
-- custom `CardScanTheme` across Camera and Gallery
-
-This completes the v0.1 implementation and device-validation boundary. The optional Gallery ratio/preset constraint remains a later enhancement and does not block v0.1.
+v0.1 physical-device validation passed on 2026-08-22. v0.2 PR1 Rust foundation merged as PR #3 with Rust format, Clippy, and tests in CI. PR2 detection must pass the same Rust gate before merge.
 
 ## Next walkthrough section
 
-v0.2 should document the Rust crate layout, Dart/FFI DTO boundary, image-buffer ownership, native error mapping, camera ROI vs manual Gallery ROI, and each preprocessing stage.
+After detector validation, document perspective-warp geometry, detected-quad crop semantics, interpolation/border policy, output sizing, and then the Dart/native FFI packaging boundary.
