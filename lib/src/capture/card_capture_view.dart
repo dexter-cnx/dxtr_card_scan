@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
-import '../theme/dxtr_card_scan_theme.dart';
+import '../theme/card_scan_theme.dart';
 import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 
@@ -35,7 +35,7 @@ class CardCaptureView extends StatefulWidget {
 
   /// Optional per-widget visual override.
   ///
-  /// When null, [DxtrCardScanTheme.captureFrameStyle] is used.
+  /// When null, [CardScanTheme.captureFrameStyle] is used.
   final CaptureFrameStyle? frameStyle;
 
   final CaptureFrameBuilder? frameBuilder;
@@ -80,7 +80,7 @@ class _CardCaptureViewState extends State<CardCaptureView> {
 
   @override
   Widget build(BuildContext context) {
-    final themedStyle = DxtrCardScanTheme.of(context).captureFrameStyle;
+    final themedStyle = CardScanTheme.of(context).captureFrameStyle;
     final frameStyle = widget.frameStyle ?? themedStyle;
 
     return LayoutBuilder(
