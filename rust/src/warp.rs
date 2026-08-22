@@ -226,9 +226,7 @@ fn bilinear_sample(image: &RgbaImage, x: f64, y: f64) -> Rgba<u8> {
     for channel in 0..4 {
         let top = p00[channel] as f64 * (1.0 - tx) + p10[channel] as f64 * tx;
         let bottom = p01[channel] as f64 * (1.0 - tx) + p11[channel] as f64 * tx;
-        channels[channel] = (top * (1.0 - ty) + bottom * ty)
-            .round()
-            .clamp(0.0, 255.0) as u8;
+        channels[channel] = (top * (1.0 - ty) + bottom * ty).round().clamp(0.0, 255.0) as u8;
     }
     Rgba(channels)
 }
