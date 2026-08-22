@@ -1,10 +1,15 @@
 use std::io::Cursor;
 
 use image::{
-    codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, GenericImageView, ImageFormat,
+    codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage, GenericImageView, GrayImage,
+    ImageFormat,
 };
 
-use crate::model::{NormalizedRect, OutputFormat, ProcessorOptions};
+use crate::{
+    detection::{detect_card_quad, DetectionOptions},
+    model::{NormalizedRect, OutputFormat, ProcessorOptions},
+    warp::{warp_quad, WarpOptions},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PixelRect {
@@ -37,7 +42,29 @@ pub fn process_encoded(input: &[u8], options: ProcessorOptions) -> Result<Vec<u8
         image = crop_pixels(image, oriented_crop)?;
     }
 
-    if options.grayscale {
+    let perspective_quad = if options.auto_detect {
+        Some(
+            detect_card_quad(&image, DetectionOptions::default())
+                .ok_or_else(|| "no card quadrilateral detected".to_owned())?
+                .quad,
+        )
+    } else {
+        options.perspective_quad
+    };
+
+    if let Some(quad) = perspective_quad {
+        image = warp_quad(
+            &image,
+            quad,
+            WarpOptions {
+                output_long_edge: options.warp_long_edge,
+            },
+        )?;
+    }
+
+    if options.enhance_for_ocr {
+        image = enhance_for_ocr(image);
+    } else if options.grayscale {
         image = DynamicImage::ImageLuma8(image.to_luma8());
     }
 
@@ -128,6 +155,63 @@ fn crop_pixels(image: DynamicImage, rect: PixelRect) -> Result<DynamicImage, Str
     ))
 }
 
+fn enhance_for_ocr(image: DynamicImage) -> DynamicImage {
+    let gray = image.to_luma8();
+    let (low, high) = percentile_bounds(&gray, 0.02, 0.98);
+    if high <= low {
+        return DynamicImage::ImageLuma8(gray);
+    }
+
+    let scale = 255.0 / (high - low) as f32;
+    let mut output = GrayImage::new(gray.width(), gray.height());
+    for (x, y, pixel) in gray.enumerate_pixels() {
+        let value = pixel.0[0];
+        let stretched = if value <= low {
+            0
+        } else if value >= high {
+            255
+        } else {
+            ((value - low) as f32 * scale).round().clamp(0.0, 255.0) as u8
+        };
+        output.put_pixel(x, y, image::Luma([stretched]));
+    }
+    DynamicImage::ImageLuma8(output)
+}
+
+fn percentile_bounds(image: &GrayImage, low_fraction: f64, high_fraction: f64) -> (u8, u8) {
+    let mut histogram = [0u64; 256];
+    for pixel in image.pixels() {
+        histogram[pixel.0[0] as usize] += 1;
+    }
+    let total = image.width() as u64 * image.height() as u64;
+    if total == 0 {
+        return (0, 255);
+    }
+
+    let low_target = (total as f64 * low_fraction).floor() as u64;
+    let high_target = (total as f64 * high_fraction).ceil() as u64;
+    let mut cumulative = 0u64;
+    let mut low = 0u8;
+    let mut high = 255u8;
+    for (value, count) in histogram.iter().copied().enumerate() {
+        cumulative += count;
+        if cumulative >= low_target {
+            low = value as u8;
+            break;
+        }
+    }
+
+    cumulative = 0;
+    for (value, count) in histogram.iter().copied().enumerate() {
+        cumulative += count;
+        if cumulative >= high_target {
+            high = value as u8;
+            break;
+        }
+    }
+    (low, high)
+}
+
 fn resize_to_max_dimension(image: DynamicImage, max_dimension: u32) -> DynamicImage {
     let (width, height) = image.dimensions();
     let current_max = width.max(height);
@@ -162,7 +246,9 @@ fn encode(image: DynamicImage, format: OutputFormat, jpeg_quality: u8) -> Result
 
 #[cfg(test)]
 mod tests {
-    use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Rgb};
+    use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Luma, Rgb};
+
+    use crate::detection::{Point, Quad};
 
     use super::*;
 
@@ -170,6 +256,20 @@ mod tests {
         let image = ImageBuffer::from_fn(width, height, |x, y| {
             Rgb([(x % 255) as u8, (y % 255) as u8, ((x + y) % 255) as u8])
         });
+        let mut bytes = Vec::new();
+        DynamicImage::ImageRgb8(image)
+            .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
+            .unwrap();
+        bytes
+    }
+
+    fn card_fixture(width: u32, height: u32) -> Vec<u8> {
+        let mut image = ImageBuffer::from_pixel(width, height, Rgb([20, 20, 20]));
+        for y in 20..height - 20 {
+            for x in 15..width - 15 {
+                image.put_pixel(x, y, Rgb([220, 220, 220]));
+            }
+        }
         let mut bytes = Vec::new();
         DynamicImage::ImageRgb8(image)
             .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
@@ -255,6 +355,56 @@ mod tests {
                 bottom: 3,
             }
         );
+    }
+
+    #[test]
+    fn manual_perspective_quad_warps_before_resize() {
+        let output = process_encoded(
+            &fixture(100, 80),
+            ProcessorOptions {
+                perspective_quad: Some(Quad {
+                    corners: [
+                        Point { x: 0.10, y: 0.20 },
+                        Point { x: 0.90, y: 0.20 },
+                        Point { x: 0.85, y: 0.80 },
+                        Point { x: 0.15, y: 0.80 },
+                    ],
+                }),
+                warp_long_edge: Some(60),
+                output_format: OutputFormat::Png,
+                ..ProcessorOptions::default()
+            },
+        )
+        .unwrap();
+        let image = decode(&output);
+        assert_eq!(image.width(), 60);
+        assert!(image.height() < image.width());
+    }
+
+    #[test]
+    fn auto_detect_warps_card_fixture() {
+        let output = process_encoded(
+            &card_fixture(180, 120),
+            ProcessorOptions {
+                auto_detect: true,
+                output_format: OutputFormat::Png,
+                ..ProcessorOptions::default()
+            },
+        )
+        .unwrap();
+        let image = decode(&output);
+        assert!(image.width() > image.height());
+        assert!(image.width() < 180);
+    }
+
+    #[test]
+    fn ocr_enhancement_stretches_grayscale_contrast() {
+        let image = GrayImage::from_fn(100, 1, |x, _| Luma([100 + (x % 20) as u8]));
+        let enhanced = enhance_for_ocr(DynamicImage::ImageLuma8(image)).to_luma8();
+        let min = enhanced.pixels().map(|pixel| pixel.0[0]).min().unwrap();
+        let max = enhanced.pixels().map(|pixel| pixel.0[0]).max().unwrap();
+        assert_eq!(min, 0);
+        assert_eq!(max, 255);
     }
 
     #[test]
