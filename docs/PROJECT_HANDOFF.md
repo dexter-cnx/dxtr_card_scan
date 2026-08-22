@@ -19,117 +19,124 @@ Repository: `dexter-cnx/dxtr_card_scan`
 7. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
 8. v0.2 detection remains deterministic classical CV.
 9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
-10. Camera detection should be constrained by the capture-frame ROI before auto-detect so unrelated high-contrast background edges do not dominate quadrilateral selection.
-11. Perspective-warp canonicalization must preserve the source top direction after long-edge normalization so cyclic quad start index cannot introduce a 180-degree output flip.
-12. CPU-heavy image decode/orientation work and synchronous native FFI processing should run off Flutter's UI isolate in the example integration flow.
-13. Desktop-selected files are treated as read-only inputs; normalized/intermediate files are written under app/system temporary storage rather than beside the selected source file.
+10. Camera detection is constrained by the capture-frame ROI before auto-detect.
+11. Perspective-warp canonicalization preserves source-top direction after long-edge normalization.
+12. CPU-heavy image decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate in the integrated example.
+13. Desktop-selected files are read-only inputs; normalized/intermediate files are written to temporary storage.
 
-## Current branch / PR
+## Current status
 
-Branch: `agent/v0.2-example-native-flow`
-PR: #7
+`v0.2` is complete and closed.
+
+PR #7 (`v0.2 PR5 — native processor validation flow`) passed CI and was squash-merged to `main` on 2026-08-22.
+
+Merge SHA: `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5`
 
 ## Completed
 
 ### v0.1 capture foundation
 
-Merged and physical-device validated on 2026-08-22. Camera/Gallery navigation, portrait/landscape controls, flash, torch, pinch zoom, capture-frame alignment/padding, orientation policies, Gallery crop, and `CardScanTheme` passed on device.
+Camera/Gallery navigation, portrait/landscape controls, flash, torch, pinch zoom, configurable capture-frame alignment/padding, orientation policies, Gallery crop, and `CardScanTheme` passed physical-device validation.
 
 ### v0.2 PR1 — Rust processor foundation
 
-Merged as PR #3. Includes JPEG/PNG decode, orientation normalization, pixel-stable ROI mapping/crop, optional grayscale/resize, encoding, stable C ABI, result ownership/free contract, and panic containment.
+JPEG/PNG decode, orientation normalization, pixel-stable ROI crop, optional grayscale/resize, encoding, stable C ABI, result ownership/free contract, and panic containment.
 
 ### v0.2 PR2 — quadrilateral detection
 
-Merged as PR #4. Includes grayscale/blur/Sobel/adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, deterministic scoring, and 45-degree regression coverage.
+Deterministic classical-CV detection: grayscale/blur/Sobel/adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, scoring, and regression coverage.
 
 ### v0.2 PR3 — perspective warp / OCR enhancement
 
-Merged as PR #5. Includes deterministic projective warp, bilinear sampling, cyclic-quad handling, long-edge-first output, bounded `warp_long_edge` (`2..=4096`), auto-detect/manual quad integration, conservative percentile OCR enhancement, and regression coverage for tiny images/allocation bounds.
+Deterministic projective warp, bilinear sampling, cyclic-quad handling, source-top-preserving long-edge orientation, bounded output size, auto-detect/manual quad integration, OCR enhancement, and regression coverage.
 
 ### v0.2 PR4 — Dart FFI + native packaging
 
-Merged as PR #6. Includes:
 - public `CardScanProcessor`
-- `processBytes()` and `processFile()`
-- `CardScanProcessorException` native status/error mapping
-- UTF-8 JSON option transport
+- `processBytes()` / `processFile()`
+- native status/error mapping via `CardScanProcessorException`
 - `CardScanProcessorOptions`, `ProcessorQuad`, `ProcessorPoint`, `ProcessorOutputFormat`
-- Android `ffiPlugin` packaging through Gradle/CMake -> Cargo per ABI
-- iOS/macOS `ffiPlugin` packaging through CocoaPods/Xcode -> Cargo per active architecture
-- Darwin universal staticlib creation and force-load linkage inside the plugin Pod target
-- Flutter >=3.22 compatibility retained with AGP 7.4.2
-- processor option JSON contract tests
+- Android Gradle/CMake -> Cargo packaging
+- iOS/macOS CocoaPods/Xcode -> Cargo packaging
+- Darwin generated static archive consumed by the plugin Pod target
+- Flutter >=3.22 compatibility retained
 
-## v0.2 PR5 — integrated native flow
+### v0.2 PR5 — integrated native flow
 
-**Validation complete on `agent/v0.2-example-native-flow` as PR #7; awaiting final CI/review and merge.**
+Integrated example now validates Camera and Gallery through the real Dart FFI/Rust processor path.
 
-Physical Android validation on 2026-08-22 proved:
-- Rust native library loads on device
-- Dart FFI calls Rust successfully
-- Rust decode/process/encode returns bytes
-- Flutter renders the processed bytes
-- integrated Camera output no longer flips upside down after warp canonicalization was fixed on device
-- Camera frame ROI / warp behavior is acceptable on device
-- zoom / flash / torch / Camera controls regressions did not reproduce
-- updated Gallery shows a responsive loading state after picking an image
-- crop interaction remains stable with system/predictive-back blocked on the crop route
-- Gallery `Scan selection` performs perspective correction successfully
-- Gallery processed preview remains color instead of looking like an OCR-enhanced grayscale crop
+Camera flow:
+1. capture JPEG
+2. bake EXIF orientation on a worker isolate
+3. resolve the visible capture frame to normalized source ROI
+4. auto-detect inside that ROI
+5. perspective warp
+6. optional OCR enhancement
+7. render processed bytes
 
-Physical iPhone 11 validation on 2026-08-22 proved:
-- iOS example builds and launches on a physical device
-- Camera capture succeeds
-- CocoaPods/Xcode builds and links the Rust static library successfully for `iphoneos`
-- Dart FFI invokes the Rust processor on-device
-- processed output is returned and displayed successfully
-- Gallery still works after the isolate/refactor change: image preparation, crop, native scan processing, perspective correction, and processed preview all complete successfully
+Gallery flow:
+1. Android/iOS use `image_picker`; macOS uses `file_selector`
+2. decode + bake EXIF orientation on a worker isolate
+3. write normalized image to temporary storage
+4. crop using `ImageCropView`
+5. block accidental system-back navigation while cropping
+6. run ROI -> auto-detect -> perspective warp -> encode on a worker isolate
+7. preserve color by default
 
-macOS validation on 2026-08-22 proved:
-- generated macOS example host builds and launches
-- native Rust archive is built and linked successfully through the plugin Pod target
-- desktop Gallery uses `file_selector` so folders can be browsed and image files selected through the native open panel
-- selected sandbox files remain read-only inputs while normalized images are written to temporary storage
-- Gallery crop, native FFI/Rust processing, perspective correction, and processed preview complete successfully
+## Final validation evidence
 
-Integration fixes discovered during physical validation:
-1. Camera JPEG/display orientation and warp cyclic-start ambiguity could produce upside-down output; EXIF is baked and warp canonicalization now preserves source-top direction.
-2. Whole-frame auto detection could select background geometry; Camera detection is constrained to the capture-frame ROI.
-3. Gallery preparation/native processing on the UI isolate could appear frozen; CPU/native work now uses `Isolate.run()`.
-4. Android predictive-back could interfere with crop gestures; the crop route blocks system back and uses explicit Close navigation.
-5. Gallery originally behaved like ROI crop + grayscale enhancement; it now runs ROI -> auto-detect -> perspective warp -> encode and preserves color by default.
-6. Darwin Runner-level `-force_load` caused generated archive ordering failures; force-load now belongs to the plugin Pod target that owns the Rust build phase.
-7. macOS sandbox prevented writing normalized files beside user-selected sources; intermediates now use system temporary storage.
+Android physical validation:
+- Camera capture/process/render passed
+- output orientation fixed
+- frame ROI / warp behavior acceptable
+- zoom / flash / torch regressions passed
+- Gallery responsive loading passed
+- crop/back protection passed
+- Gallery perspective correction passed
+- color output passed
 
-Current Gallery implementation:
-- Android/iOS picker: `image_picker`
-- macOS picker: `file_selector`
-- `example/lib/background_scan_tasks.dart` runs image decode/EXIF bake and synchronous FFI/Rust processing through `Isolate.run()`
-- Gallery shows a blocking progress overlay and status text while preparing or processing
-- Gallery crop route uses `PopScope` to block device/system back gestures; leaving the page is explicit through its Close button
-- Gallery `Scan selection` runs `ROI -> auto-detect -> perspective warp -> encode`
-- Gallery preview keeps color by default (`enhanceForOcr: false`); OCR enhancement remains opt-in processor behavior
+Physical iPhone 11 validation:
+- app build/launch passed
+- Camera capture passed
+- Rust static archive build/link passed
+- Dart FFI -> Rust processing passed
+- processed output rendering passed
+- Gallery after isolate/refactor passed
 
-Additional native packaging state:
-- iOS/macOS podspec script phases declare the generated Rust archive as an Xcode output
-- generated iOS example signing uses Development Team `ZTM9BCJPY9`
-- example host bootstrap generates Android, iOS, and macOS scaffolding
-- macOS validation skips Camera initialization and targets Gallery/native processing
+macOS validation:
+- generated macOS host build/launch passed
+- Rust archive build/link through plugin Pod target passed
+- native file picker can browse folders and select images
+- sandbox-safe temporary normalization passed
+- Gallery crop / FFI / Rust processing / perspective correction / preview passed
 
-## Remaining before v0.2 completion
+CI run `32569564457` passed Flutter analyze/tests, Android native APK build, Rust format, Clippy, and Rust tests. All PR review threads were resolved before merge.
 
-1. Confirm PR #7 CI/review state is clean.
-2. Merge PR #7 and record the final merge SHA.
-3. Close v0.2 and proceed to v0.3 quality analysis.
+## Important fixes learned during validation
+
+1. Camera JPEG/display orientation must be normalized before ROI mapping.
+2. Cyclic quad start order must not be allowed to introduce a 180-degree warp flip.
+3. Camera auto-detect should run inside the visible capture-frame ROI, not the full image.
+4. CPU-heavy image preparation and synchronous FFI should not run on Flutter's UI isolate.
+5. Darwin `-force_load` belongs to the plugin Pod target that owns the Rust build phase, not the Runner target.
+6. macOS sandbox-selected files must not be used as output locations for normalized/intermediate files.
+7. Desktop Gallery uses a desktop-native picker rather than mobile-oriented `image_picker`.
+
+## Next milestone
+
+Proceed to **v0.3 Quality analysis**:
+- blur score
+- exposure quality
+- card coverage
+- detection confidence
+
+Keep quality analysis as measurements first; do not couple it to live auto-capture until the metrics are stable.
 
 ## Native build policy
 
 The package keeps Flutter >=3.22 compatibility, so native packaging uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
 
-Generated native build state such as `android/.cxx/`, platform example host folders, and `rust/target/` is ignored. `rust/Cargo.lock` should remain committed because Rust is an embedded native implementation and reproducible dependency resolution is desirable.
-
-`make install-hooks` installs the tracked pre-push guard. It runs Dart/Rust formatting and Rust validation locally before push.
+Generated native build state such as `android/.cxx/`, generated example platform hosts, and `rust/target/` is ignored. `rust/Cargo.lock` remains committed for reproducible embedded native builds.
 
 ## Documentation policy
 
