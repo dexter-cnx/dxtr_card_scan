@@ -95,13 +95,21 @@ Camera controls resolve `CardScanTheme.cameraControlsStyle`; Gallery crop resolv
 
 `Dxtr`/`dxtr` belongs only to the package/repository identity such as `dxtr_card_scan` and its import path. Dart classes, typedefs, fields, variables, helpers, test names, and UI-facing example labels must use domain names such as `CardScanTheme` rather than package-prefixed names.
 
-## Automated validation
+## Validation status
 
-CI gates package analyze/tests, frame alignment/padding tests, orientation-policy tests, theme resolution/interpolation tests, example analyze, generated Android/iOS host setup, and Android debug build.
+Automated validation covers package analyze/tests, frame alignment/padding, orientation policy, theme resolution/interpolation, example analyze, generated Android/iOS host setup, and Android debug build.
 
-## Manual validation boundary
+Physical-device validation passed on 2026-08-22. The validated flow includes:
+- Home -> Camera / Gallery
+- Camera Back in portrait and both landscape orientations
+- Flash / Torch / pinch zoom
+- shutter and camera-control theming
+- frame alignment/padding behavior
+- orientation policy behavior
+- Gallery picker -> crop -> Use crop
+- custom `CardScanTheme` across Camera and Gallery
 
-The next device pass should cover Home -> Camera -> Back, Home -> Gallery -> picker -> crop -> Use crop, flash/torch/pinch zoom, landscape control placement, frame alignment/padding, orientation policy, and one custom `CardScanTheme` across Camera and Gallery.
+This completes the v0.1 implementation and device-validation boundary. The optional Gallery ratio/preset constraint remains a later enhancement and does not block v0.1.
 
 ## Next walkthrough section
 
