@@ -8,14 +8,25 @@ endif()
 if(ANDROID_ABI STREQUAL "arm64-v8a")
   set(RUST_TARGET "aarch64-linux-android")
   set(RUST_LINKER_ENV "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER")
+  set(RUST_CLANG_TRIPLE "aarch64-linux-android")
 elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
   set(RUST_TARGET "armv7-linux-androideabi")
   set(RUST_LINKER_ENV "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER")
+  set(RUST_CLANG_TRIPLE "armv7a-linux-androideabi")
 elseif(ANDROID_ABI STREQUAL "x86_64")
   set(RUST_TARGET "x86_64-linux-android")
   set(RUST_LINKER_ENV "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER")
+  set(RUST_CLANG_TRIPLE "x86_64-linux-android")
 else()
   message(FATAL_ERROR "Unsupported Android ABI: ${ANDROID_ABI}")
+endif()
+
+string(REPLACE "android-" "" ANDROID_API_LEVEL "${ANDROID_PLATFORM}")
+get_filename_component(NDK_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+set(RUST_LINKER "${NDK_BIN_DIR}/${RUST_CLANG_TRIPLE}${ANDROID_API_LEVEL}-clang")
+
+if(NOT EXISTS "${RUST_LINKER}")
+  message(FATAL_ERROR "Rust Android linker not found: ${RUST_LINKER}")
 endif()
 
 set(RUST_MANIFEST "${CMAKE_CURRENT_LIST_DIR}/../rust/Cargo.toml")
@@ -26,7 +37,7 @@ add_custom_command(
   OUTPUT "${RUST_LIBRARY}"
   COMMAND rustup target add "${RUST_TARGET}"
   COMMAND ${CMAKE_COMMAND} -E env
-          "${RUST_LINKER_ENV}=${CMAKE_C_COMPILER}"
+          "${RUST_LINKER_ENV}=${RUST_LINKER}"
           "CARGO_TARGET_DIR=${RUST_TARGET_DIR}"
           cargo build --manifest-path "${RUST_MANIFEST}" --target "${RUST_TARGET}" --release
   DEPENDS
