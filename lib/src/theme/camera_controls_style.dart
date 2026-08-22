@@ -20,8 +20,8 @@ class CameraControlsStyle {
     this.activeControlForegroundColor,
     this.zoomBadgeBackgroundColor,
     this.zoomBadgeForegroundColor,
-  }) : assert(shutterSize > 0),
-       assert(shutterBorderWidth >= 0);
+  })  : assert(shutterSize > 0),
+        assert(shutterBorderWidth >= 0);
 
   final double shutterSize;
   final ShapeBorder shutterShape;
@@ -90,8 +90,8 @@ class CameraControlsStyle {
   ) {
     return CameraControlsStyle(
       shutterSize: lerpDouble(a.shutterSize, b.shutterSize, t)!,
-      shutterShape: ShapeBorder.lerp(a.shutterShape, b.shutterShape, t) ??
-          b.shutterShape,
+      shutterShape:
+          ShapeBorder.lerp(a.shutterShape, b.shutterShape, t) ?? b.shutterShape,
       shutterBackgroundColor:
           Color.lerp(a.shutterBackgroundColor, b.shutterBackgroundColor, t),
       shutterForegroundColor:

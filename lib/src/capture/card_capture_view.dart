@@ -6,7 +6,8 @@ import '../theme/card_scan_theme.dart';
 import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 
-typedef CaptureFrameBuilder = Widget Function(BuildContext context, Rect frameRect);
+typedef CaptureFrameBuilder = Widget Function(
+    BuildContext context, Rect frameRect);
 typedef CardPreviewBuilder = Widget Function(BuildContext context);
 typedef CaptureOrientationMismatchBuilder = Widget Function(
   BuildContext context,

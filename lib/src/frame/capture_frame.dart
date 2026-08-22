@@ -12,13 +12,13 @@ class CaptureFrame {
     this.normalizedRect,
     this.alignment,
     this.alignmentPadding = EdgeInsets.zero,
-  }) : assert(widthFactor > 0 && widthFactor <= 1),
-       assert(maxHeightFactor > 0 && maxHeightFactor <= 1),
-       assert(aspectRatio == null || aspectRatio > 0),
-       assert(
-         (fixedSize == null ? 0 : 1) + (normalizedRect == null ? 0 : 1) <= 1,
-         'fixedSize and normalizedRect are mutually exclusive',
-       );
+  })  : assert(widthFactor > 0 && widthFactor <= 1),
+        assert(maxHeightFactor > 0 && maxHeightFactor <= 1),
+        assert(aspectRatio == null || aspectRatio > 0),
+        assert(
+          (fixedSize == null ? 0 : 1) + (normalizedRect == null ? 0 : 1) <= 1,
+          'fixedSize and normalizedRect are mutually exclusive',
+        );
 
   /// Common ID-1 card aspect ratio (85.60 mm x 53.98 mm).
   const CaptureFrame.id1({
@@ -26,9 +26,9 @@ class CaptureFrame {
     this.maxHeightFactor = 0.82,
     this.alignment,
     this.alignmentPadding = EdgeInsets.zero,
-  }) : aspectRatio = 85.60 / 53.98,
-       fixedSize = null,
-       normalizedRect = null;
+  })  : aspectRatio = 85.60 / 53.98,
+        fixedSize = null,
+        normalizedRect = null;
 
   final double? aspectRatio;
   final double widthFactor;

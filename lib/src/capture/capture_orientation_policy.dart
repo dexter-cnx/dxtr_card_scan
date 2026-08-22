@@ -15,8 +15,10 @@ enum CaptureOrientationPolicy {
   bool allows(Orientation orientation) {
     return switch (this) {
       CaptureOrientationPolicy.any => true,
-      CaptureOrientationPolicy.portraitOnly => orientation == Orientation.portrait,
-      CaptureOrientationPolicy.landscapeOnly => orientation == Orientation.landscape,
+      CaptureOrientationPolicy.portraitOnly =>
+        orientation == Orientation.portrait,
+      CaptureOrientationPolicy.landscapeOnly =>
+        orientation == Orientation.landscape,
     };
   }
 }

@@ -56,6 +56,7 @@ class CardScanTheme extends ThemeExtension<CardScanTheme> {
 
   /// Resolves the nearest package theme or falls back to defaults.
   static CardScanTheme of(BuildContext context) {
-    return Theme.of(context).extension<CardScanTheme>() ?? const CardScanTheme();
+    return Theme.of(context).extension<CardScanTheme>() ??
+        const CardScanTheme();
   }
 }

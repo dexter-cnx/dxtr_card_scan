@@ -58,6 +58,7 @@ class PreviewGeometry {
   /// Maps a viewport-space rectangle to normalized raw captured-image
   /// coordinates, suitable for crossing the future Rust boundary.
   NormalizedRect viewportRectToNormalizedImage(Rect viewportRect) {
-    return NormalizedRect.fromRect(viewportRectToImage(viewportRect), imageSize);
+    return NormalizedRect.fromRect(
+        viewportRectToImage(viewportRect), imageSize);
   }
 }

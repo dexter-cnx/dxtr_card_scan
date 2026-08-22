@@ -8,5 +8,7 @@ coverage/
 *.iml
 .DS_Store
 rust/target/
+pubspec.lock
+**/.flutter-plugins-dependencies
 example/android/
 example/ios/

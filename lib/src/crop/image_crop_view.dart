@@ -114,10 +114,8 @@ class _ImageCropViewState extends State<ImageCropView> {
     final dy = details.delta.dy / imageRect.height;
     final width = _selection.width;
     final height = _selection.height;
-    final left =
-        (_selection.left + dx).clamp(0.0, 1.0 - width).toDouble();
-    final top =
-        (_selection.top + dy).clamp(0.0, 1.0 - height).toDouble();
+    final left = (_selection.left + dx).clamp(0.0, 1.0 - width).toDouble();
+    final top = (_selection.top + dy).clamp(0.0, 1.0 - height).toDouble();
     _emit(
       NormalizedRect(
         left: left,
@@ -137,22 +135,14 @@ class _ImageCropViewState extends State<ImageCropView> {
     var bottom = _selection.bottom;
 
     if (handle.left) {
-      left = (left + dx)
-          .clamp(0.0, right - _minimumFraction)
-          .toDouble();
+      left = (left + dx).clamp(0.0, right - _minimumFraction).toDouble();
     } else {
-      right = (right + dx)
-          .clamp(left + _minimumFraction, 1.0)
-          .toDouble();
+      right = (right + dx).clamp(left + _minimumFraction, 1.0).toDouble();
     }
     if (handle.top) {
-      top = (top + dy)
-          .clamp(0.0, bottom - _minimumFraction)
-          .toDouble();
+      top = (top + dy).clamp(0.0, bottom - _minimumFraction).toDouble();
     } else {
-      bottom = (bottom + dy)
-          .clamp(top + _minimumFraction, 1.0)
-          .toDouble();
+      bottom = (bottom + dy).clamp(top + _minimumFraction, 1.0).toDouble();
     }
 
     _emit(

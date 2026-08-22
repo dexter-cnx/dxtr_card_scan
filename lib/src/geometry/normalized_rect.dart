@@ -7,12 +7,12 @@ class NormalizedRect {
     required this.top,
     required this.right,
     required this.bottom,
-  }) : assert(left >= 0 && left <= 1),
-       assert(top >= 0 && top <= 1),
-       assert(right >= 0 && right <= 1),
-       assert(bottom >= 0 && bottom <= 1),
-       assert(left <= right),
-       assert(top <= bottom);
+  })  : assert(left >= 0 && left <= 1),
+        assert(top >= 0 && top <= 1),
+        assert(right >= 0 && right <= 1),
+        assert(bottom >= 0 && bottom <= 1),
+        assert(left <= right),
+        assert(top <= bottom);
 
   final double left;
   final double top;

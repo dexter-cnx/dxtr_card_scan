@@ -596,7 +596,8 @@ class _BackButton extends StatelessWidget {
     return IconButton.filled(
       tooltip: 'Back',
       style: IconButton.styleFrom(
-        backgroundColor: style.controlBackgroundColor ?? colors.surfaceContainer,
+        backgroundColor:
+            style.controlBackgroundColor ?? colors.surfaceContainer,
         foregroundColor: style.controlForegroundColor ?? colors.onSurface,
       ),
       onPressed: onPressed,
