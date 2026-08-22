@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: dxtr-card-scan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Package dependencies
+        run: flutter pub get
+      - name: Analyze package
+        run: flutter analyze
+      - name: Test package
+        run: flutter test
+      - name: Example dependencies
+        working-directory: example
+        run: flutter pub get
+      - name: Analyze example
+        working-directory: example
+        run: flutter analyze lib
+      - name: Scaffold example host platforms
+        run: bash tool/bootstrap_example_platforms.sh
+      - name: Build Android example
+        working-directory: example
+        run: flutter build apk --debug
