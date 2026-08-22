@@ -6,7 +6,7 @@ Last updated: 2026-08-22
 
 Repository: `dexter-cnx/dxtr_card_scan`
 
-`dxtr_card_scan` is an OCR-engine-agnostic Flutter/Dart SDK for card/document capture plus deterministic Rust preprocessing. Flutter owns camera/UI/preview geometry. Rust owns raster processing.
+`dxtr_card_scan` is an OCR-engine-agnostic Flutter/Dart SDK for card/document capture plus deterministic Rust preprocessing. Flutter owns capture UI/preview geometry. Rust owns deterministic raster processing.
 
 ## Architecture rules
 
@@ -14,15 +14,18 @@ Repository: `dexter-cnx/dxtr_card_scan`
 2. Rust does not own camera lifecycle/UI.
 3. Preview/frame geometry is normalized before processing.
 4. Rotation/mirroring is explicit.
-5. File picking stays in the host/example.
-6. Grayscale/OCR enhancement remains opt-in.
-7. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
-8. v0.2 detection remains deterministic classical CV.
-9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
-10. Camera detection is constrained by the capture-frame ROI before auto-detect.
-11. Perspective-warp canonicalization preserves source-top direction after long-edge normalization.
-12. CPU-heavy image decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate in the integrated example.
-13. Desktop-selected files are read-only inputs; normalized/intermediate files are written to temporary storage.
+5. Default Camera and Gallery capture behavior belongs to the package; host apps configure the surfaces rather than reimplementing the pipeline.
+6. Gallery/Camera labels are injectable so localization and wording stay host-controlled.
+7. Host apps may replace the default Gallery picker through an escape-hatch callback without taking ownership of crop/process behavior.
+8. Grayscale/OCR enhancement remains opt-in.
+9. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
+10. v0.2 detection remains deterministic classical CV.
+11. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
+12. Camera detection is constrained by the capture-frame ROI before auto-detect.
+13. Perspective-warp canonicalization preserves source-top direction after long-edge normalization.
+14. CPU-heavy image decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
+15. Desktop-selected files are read-only inputs; normalized/intermediate files are written to temporary storage.
+16. File-backed staged images are preferred over eagerly copying multi-megabyte byte buffers; callers can request bytes when needed.
 
 ## Current status
 
@@ -31,6 +34,70 @@ Repository: `dexter-cnx/dxtr_card_scan`
 PR #7 (`v0.2 PR5 — native processor validation flow`) passed CI and was squash-merged to `main` on 2026-08-22.
 
 Merge SHA: `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5`
+
+Current branch: `feature/high-level-capture-pipeline`
+Current PR: #9 — `High-level capture pipeline owned by package`
+
+PR #9 is a pre-v0.3 API-ownership refactor. The goal is for Example code to define frame/UI configuration, processing options and result presentation only; Camera/Gallery mechanics remain package-owned.
+
+## High-level capture API refactor
+
+### Camera
+
+`CardCaptureView` is now the high-level Camera surface and owns:
+- camera discovery and lifecycle
+- back camera selection
+- Camera preview and `BoxFit.cover` geometry
+- Back / flash / torch / pinch zoom / shutter controls
+- orientation policy
+- capture-frame rendering
+- JPEG capture
+- EXIF orientation normalization
+- frame -> normalized source ROI mapping
+- native auto-detect / perspective rectification
+- optional post-rectification confirmation
+- final enhancement/resize/encoding
+- temporary intermediate files
+
+Host configuration remains:
+- `CaptureFrame`
+- `CardScanProcessorOptions`
+- `CaptureConfirmationMode`
+- `CardCaptureControlsConfig`
+- `CardCaptureLabels`
+- theme/style overrides
+- staged callbacks / final presentation
+
+Camera result stages:
+1. `onRawCaptured` — full camera image, not cropped
+2. `onCropReady` — perspective-rectified card before final enhancement
+3. `onCompleted` — `CardCaptureResult` containing `original`, `cropped`, and `processed`
+
+### Gallery
+
+`CardGalleryCaptureView` owns the default source-selection and processing path:
+- Android/iOS: `image_picker`
+- macOS: `file_selector`
+- optional host `pickImagePath` override
+- EXIF normalization
+- `ImageCropView`
+- ROI -> auto-detect -> perspective rectification
+- optional confirmation
+- final processing
+
+`CardGalleryCropView` remains available when the host already owns a source path but still wants package-owned crop/process behavior.
+
+All package-owned Gallery text is supplied through `GalleryCropLabels`.
+
+### Image/result representation
+
+`CardCaptureImage` uses a file path as its primary representation and exposes `readBytes()` for consumers that need bytes. This avoids forcing multi-megabyte copies between isolates or callbacks at every stage.
+
+`CardCaptureResult` exposes:
+- `original`
+- `cropped`
+- `processed`
+- `sourceRoi`
 
 ## Completed
 
@@ -63,27 +130,9 @@ Deterministic projective warp, bilinear sampling, cyclic-quad handling, source-t
 
 ### v0.2 PR5 — integrated native flow
 
-Integrated example now validates Camera and Gallery through the real Dart FFI/Rust processor path.
+Integrated example validated Camera and Gallery through the real Dart FFI/Rust processor path before the high-level API refactor.
 
-Camera flow:
-1. capture JPEG
-2. bake EXIF orientation on a worker isolate
-3. resolve the visible capture frame to normalized source ROI
-4. auto-detect inside that ROI
-5. perspective warp
-6. optional OCR enhancement
-7. render processed bytes
-
-Gallery flow:
-1. Android/iOS use `image_picker`; macOS uses `file_selector`
-2. decode + bake EXIF orientation on a worker isolate
-3. write normalized image to temporary storage
-4. crop using `ImageCropView`
-5. block accidental system-back navigation while cropping
-6. run ROI -> auto-detect -> perspective warp -> encode on a worker isolate
-7. preserve color by default
-
-## Final validation evidence
+## Final v0.2 validation evidence
 
 Android physical validation:
 - Camera capture/process/render passed
@@ -124,7 +173,7 @@ CI run `32569564457` passed Flutter analyze/tests, Android native APK build, Rus
 
 ## Next milestone
 
-Proceed to **v0.3 Quality analysis**:
+Finish PR #9 CI/review and physical regression validation, then proceed to **v0.3 Quality analysis**:
 - blur score
 - exposure quality
 - card coverage
