@@ -27,7 +27,7 @@ Pipeline:
 Deterministic classical-CV detector: grayscale, blur, Sobel, adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, scoring.
 
 ### `rust/src/warp.rs`
-Deterministic projective rectification with cyclic-corner handling, long-edge-first orientation, bilinear sampling, allocation bounds, and degenerate/singular rejection.
+Deterministic projective rectification with cyclic-corner handling, long-edge-first orientation, source-top preservation, bilinear sampling, allocation bounds, and degenerate/singular rejection. Source-top preservation prevents a cyclic quad starting on the bottom edge from producing a 180-degree output flip.
 
 ### `rust/src/ffi.rs`
 Stable C ABI:
@@ -58,28 +58,54 @@ Library loading:
 `android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and uses the NDK compiler supplied by CMake as Cargo's linker. Cargo builds the Rust staticlib; CMake force-links it into `libdxtr_card_scan_processor.so` so exported C ABI symbols remain available to Dart FFI. No binary is committed.
 
 ### iOS / macOS
-The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. Consumer-target `OTHER_LDFLAGS -force_load` keeps the Rust C ABI symbols from being stripped.
+The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. The script phase declares the generated archive as an Xcode output, and consumer-target `OTHER_LDFLAGS -force_load` keeps the Rust C ABI symbols from being stripped.
+
+## Integrated example structure
+
+`example/lib/integrated_card_scan_demo.dart` is the default entrypoint and now only owns app/home navigation.
+
+Dedicated files:
+- `camera_scan_page.dart` — Camera UI + capture-frame flow
+- `gallery_scan_page.dart` — Gallery picker/crop/scan UX
+- `background_scan_tasks.dart` — isolate-backed image preparation and native processing
+- `processed_preview_page.dart` — processed output rendering
+
+### Background work
+
+`background_scan_tasks.dart` uses `Isolate.run()` for two expensive operations:
+1. image decode + EXIF `bakeOrientation()` + normalized JPEG write
+2. synchronous Dart FFI -> Rust processor execution
+
+This keeps Flutter animation/input responsive while decoding, detecting, warping, and encoding.
 
 ## Integrated Camera flow
-
-`example/lib/integrated_card_scan_demo.dart` is now the default example flow.
 
 Camera processing sequence:
 1. preview through `CardCaptureView` with the existing ID-1 frame
 2. keep zoom, flash off/auto/on, torch, Back, lifecycle handling, and orientation-aware shutter behavior
 3. capture JPEG
-4. decode and `bakeOrientation()` so EXIF orientation is converted into physical pixels
+4. normalize EXIF orientation on a worker isolate
 5. resolve the same `CaptureFrame` against the camera viewport
 6. map that viewport rectangle through `PreviewGeometry` to normalized source-image ROI coordinates
-7. pass the normalized image plus ROI to `CardScanProcessor`
+7. process the normalized image plus ROI on a worker isolate
 8. run auto-detect and perspective warp only inside the frame ROI
 9. apply OCR enhancement and render the processed bytes
 
-This avoids two failure modes seen on the first physical Android run: upside-down output from ignored Camera JPEG orientation metadata, and false quadrilateral selection from strong background edges outside the capture frame.
+Physical Android re-test passed this Camera flow, including orientation, frame ROI/warp behavior and controls.
 
 ## Gallery flow
 
-The Gallery example normalizes EXIF orientation before both display and processing. `ImageCropView` therefore produces ROI coordinates against the same physical pixel layout consumed by Rust.
+Gallery sequence:
+1. host picker returns an image
+2. UI immediately shows `Preparing image…`
+3. image decode + EXIF orientation bake runs on a worker isolate
+4. `ImageCropView` displays that normalized file, so its ROI and Rust pixels use the same coordinate space
+5. the Gallery route uses `PopScope` to block device/system back gestures while cropping; leaving is explicit through Close
+6. `Scan selection` sends the selected ROI to a worker isolate
+7. Rust crops ROI, auto-detects card edges inside it, perspective-warps the card, resizes/encodes, and returns JPEG bytes
+8. Gallery preview preserves color by default; OCR enhancement remains optional rather than being forced on the scan preview
+
+The crop should include the whole card so the detector still sees all four card edges inside the selected ROI.
 
 ## Validation tooling
 
@@ -98,4 +124,7 @@ Generated build state such as `android/.cxx/` and `rust/target/` is ignored. `ru
 - PR #4 deterministic quad detection merged.
 - PR #5 perspective warp/OCR enhancement merged.
 - PR #6 Dart FFI/native packaging merged.
-- PR #7 physical Android validation proved native loading, FFI call, Rust process/encode, and Flutter result rendering. Orientation/frame-ROI corrections are now awaiting the next device retest.
+- PR #7 Android Camera physical validation passed after orientation/frame-ROI fixes.
+- PR #7 iPhone 11 physical Camera/native-processing validation passed.
+- Updated isolate-backed Gallery flow awaits Android/iPhone re-test.
+- macOS native linkage remains to be validated.
