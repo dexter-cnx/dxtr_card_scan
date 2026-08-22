@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +9,7 @@ import 'gallery_scan_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final cameras = await availableCameras();
+  final cameras = Platform.isMacOS ? <CameraDescription>[] : await availableCameras();
   runApp(IntegratedCardScanDemo(cameras: cameras));
 }
 
@@ -55,7 +57,7 @@ class _HomePage extends StatelessWidget {
                             ),
                           ),
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('Camera'),
+                  label: Text(Platform.isMacOS ? 'Camera (mobile only)' : 'Camera'),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.tonalIcon(
