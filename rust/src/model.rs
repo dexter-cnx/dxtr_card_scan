@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::detection::{Point, Quad};
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct NormalizedRect {
     pub left: f32,
@@ -40,6 +42,10 @@ pub enum OutputFormat {
 pub struct ProcessorOptions {
     pub quarter_turns_clockwise: u8,
     pub roi: Option<NormalizedRect>,
+    pub auto_detect: bool,
+    pub perspective_quad: Option<Quad>,
+    pub warp_long_edge: Option<u32>,
+    pub enhance_for_ocr: bool,
     pub grayscale: bool,
     pub max_dimension: Option<u32>,
     pub output_format: OutputFormat,
@@ -51,6 +57,10 @@ impl Default for ProcessorOptions {
         Self {
             quarter_turns_clockwise: 0,
             roi: None,
+            auto_detect: false,
+            perspective_quad: None,
+            warp_long_edge: None,
+            enhance_for_ocr: false,
             grayscale: false,
             max_dimension: None,
             output_format: OutputFormat::Jpeg,
@@ -65,6 +75,15 @@ impl ProcessorOptions {
         if let Some(roi) = self.roi {
             self.roi = Some(roi.validate()?);
         }
+        if self.auto_detect && self.perspective_quad.is_some() {
+            return Err("auto_detect and perspective_quad are mutually exclusive".to_owned());
+        }
+        if let Some(quad) = self.perspective_quad {
+            validate_quad(quad)?;
+        }
+        if self.warp_long_edge == Some(0) || self.warp_long_edge == Some(1) {
+            return Err("warp_long_edge must be at least 2 when provided".to_owned());
+        }
         if self.max_dimension == Some(0) {
             return Err("max_dimension must be greater than zero when provided".to_owned());
         }
@@ -73,4 +92,16 @@ impl ProcessorOptions {
         }
         Ok(self)
     }
+}
+
+fn validate_quad(quad: Quad) -> Result<(), String> {
+    for Point { x, y } in quad.corners {
+        if !x.is_finite() || !y.is_finite() {
+            return Err("perspective_quad coordinates must be finite".to_owned());
+        }
+        if !(0.0..=1.0).contains(&x) || !(0.0..=1.0).contains(&y) {
+            return Err("perspective_quad coordinates must stay inside [0,1]".to_owned());
+        }
+    }
+    Ok(())
 }
