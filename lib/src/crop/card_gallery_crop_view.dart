@@ -19,11 +19,6 @@ typedef GalleryCaptureImageCallback = Future<void> Function(
 );
 
 /// High-level Gallery crop + native processing surface.
-///
-/// The host supplies only the selected source path, frame/crop presentation,
-/// processing options and callbacks. EXIF normalization, temporary files,
-/// manual ROI selection, native rectification and final processing remain
-/// package-owned.
 class CardGalleryCropView extends StatefulWidget {
   const CardGalleryCropView({
     required this.sourcePath,
@@ -38,17 +33,32 @@ class CardGalleryCropView extends StatefulWidget {
       right: .94,
       bottom: .94,
     ),
+    this.autoDetectInitialCrop = true,
+    this.initialCropPadding = .02,
+    this.minInitialCropConfidence = .70,
     this.confirmationMode = CaptureConfirmationMode.afterCrop,
     this.labels = const GalleryCropLabels(),
     this.onOriginalReady,
     this.onCropReady,
     this.onClose,
     super.key,
-  });
+  })  : assert(initialCropPadding >= 0 && initialCropPadding < .5),
+        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1);
 
   final String sourcePath;
   final CardScanProcessorOptions processOptions;
   final NormalizedRect initialRect;
+
+  /// Uses the native card-edge detector to seed the editable crop rectangle.
+  /// Falls back to [initialRect] when no reliable card is found.
+  final bool autoDetectInitialCrop;
+
+  /// Normalized padding added around the detected card bounds.
+  final double initialCropPadding;
+
+  /// Minimum detector score required before replacing [initialRect].
+  final double minInitialCropConfidence;
+
   final CaptureConfirmationMode confirmationMode;
   final GalleryCropLabels labels;
   final GalleryCaptureImageCallback? onOriginalReady;
@@ -79,7 +89,11 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
   @override
   void didUpdateWidget(CardGalleryCropView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.sourcePath != widget.sourcePath) {
+    if (oldWidget.sourcePath != widget.sourcePath ||
+        oldWidget.initialRect != widget.initialRect ||
+        oldWidget.autoDetectInitialCrop != widget.autoDetectInitialCrop ||
+        oldWidget.initialCropPadding != widget.initialCropPadding ||
+        oldWidget.minInitialCropConfidence != widget.minInitialCropConfidence) {
       _prepared = null;
       _selection = null;
       _rectified = null;
@@ -97,13 +111,31 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     try {
       final prepared = await _pipeline.prepare(sourcePath);
       if (!mounted || sourcePath != widget.sourcePath) return;
+
+      var initialRect = widget.initialRect;
+      if (widget.autoDetectInitialCrop) {
+        try {
+          final detection = await _pipeline.detect(prepared.normalized);
+          if (detection != null &&
+              detection.confidence >= widget.minInitialCropConfidence) {
+            initialRect = detection.boundingRect(
+              padding: widget.initialCropPadding,
+            );
+          }
+        } catch (_) {
+          // Initial detection is an enhancement only. Keep the configured
+          // fallback rectangle if native detection is unavailable or fails.
+        }
+      }
+
+      if (!mounted || sourcePath != widget.sourcePath) return;
       await widget.onOriginalReady?.call(prepared.original);
       if (!mounted || sourcePath != widget.sourcePath) return;
       setState(() {
         _prepared = prepared;
         _selection = ImageCropSelection(
           imagePath: prepared.normalized.path,
-          normalizedRect: widget.initialRect,
+          normalizedRect: initialRect,
         );
       });
     } catch (error) {
