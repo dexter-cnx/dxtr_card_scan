@@ -28,4 +28,28 @@ with open(path, 'wb') as f:
     plistlib.dump(data, f, sort_keys=False)
 PY
 
-echo "Generated example Android/iOS host scaffolding."
+python3 - "$example_dir/ios/Runner.xcodeproj/project.pbxproj" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+team_id = 'ZTM9BCJPY9'
+
+if 'DEVELOPMENT_TEAM =' in text:
+    text = re.sub(
+        r'DEVELOPMENT_TEAM = [^;]*;',
+        f'DEVELOPMENT_TEAM = {team_id};',
+        text,
+    )
+else:
+    text = text.replace(
+        'PRODUCT_BUNDLE_IDENTIFIER = dev.cnxdev.dxtrCardScanExample;',
+        f'DEVELOPMENT_TEAM = {team_id};\n\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = dev.cnxdev.dxtrCardScanExample;',
+    )
+
+path.write_text(text)
+PY
+
+echo "Generated example Android/iOS host scaffolding with iOS development team ZTM9BCJPY9."
