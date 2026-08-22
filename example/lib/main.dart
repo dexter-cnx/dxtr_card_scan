@@ -1,3 +1,3 @@
-import 'native_processor_demo.dart' as native_processor_demo;
+import 'integrated_card_scan_demo.dart' as integrated_demo;
 
-Future<void> main() => native_processor_demo.main();
+Future<void> main() => integrated_demo.main();
