@@ -21,6 +21,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
 10. Camera detection should be constrained by the capture-frame ROI before auto-detect so unrelated high-contrast background edges do not dominate quadrilateral selection.
 11. Perspective-warp canonicalization must preserve the source top direction after long-edge normalization so cyclic quad start index cannot introduce a 180-degree output flip.
+12. CPU-heavy image decode/orientation work and synchronous native FFI processing should run off Flutter's UI isolate in the example integration flow.
 
 ## Current branch / PR
 
@@ -63,12 +64,14 @@ Merged as PR #6. Includes:
 
 **In progress on `agent/v0.2-example-native-flow` as PR #7.**
 
-Physical Android validation already proved:
+Physical Android validation on 2026-08-22 proved:
 - Rust native library loads on device
 - Dart FFI calls Rust successfully
 - Rust decode/process/encode returns bytes
 - Flutter renders the processed bytes
 - integrated Camera output no longer flips upside down after warp canonicalization was fixed on device
+- Camera frame ROI / warp behavior is acceptable on device
+- zoom / flash / torch / Camera controls regressions did not reproduce
 
 Physical iPhone 11 validation on 2026-08-22 proved:
 - iOS example builds and launches on a physical device
@@ -82,24 +85,30 @@ The first physical Camera run exposed two integration issues rather than an FFI 
 1. Camera/display orientation and warp canonicalization could produce an upside-down output.
 2. Whole-frame auto detection could select strong background geometry and warp an otherwise straight card.
 
-Current fix:
-- default `flutter run` now opens `example/lib/integrated_card_scan_demo.dart`
-- Camera uses the existing `CardCaptureView` / ID-1 frame
-- zoom, flash off/auto/on, torch, orientation-aware shutter placement, Back, lifecycle handling, and theme support remain available
-- captured JPEG is decoded and `bakeOrientation()` is applied before processing
-- the resolved capture frame is mapped through `PreviewGeometry` into normalized source-image ROI coordinates
-- Rust auto-detect/warp runs only inside that frame-derived ROI
-- warp canonicalization now compares the two long-edge midpoints and chooses the source-top long edge as output top, removing 180-degree cyclic-start ambiguity
-- Rust regression coverage includes a quad whose cyclic order starts on the bottom edge
-- OCR enhancement and processed preview follow the warp
-- Gallery also normalizes EXIF orientation before crop/processing so UI ROI and raw pixels share one coordinate system
+Both Camera issues are fixed and passed Android physical re-test.
+
+Gallery physical testing then exposed three integration/UX issues:
+1. decode + EXIF bake on the UI isolate made the screen appear frozen after picking an image.
+2. Android system/predictive-back gestures could interfere with crop interaction near screen edges.
+3. Gallery processing only did ROI crop + OCR enhancement, so the output looked like a grayscale crop rather than a rectified scan.
+
+Current Gallery fix:
+- `example/lib/background_scan_tasks.dart` runs image decode/EXIF bake and synchronous FFI/Rust processing through `Isolate.run()`
+- the integrated example is split into dedicated Camera / Gallery / processed-preview files
+- Gallery shows a blocking progress overlay and status text while preparing or processing
+- Gallery crop route uses `PopScope` to block device/system back gestures; leaving the page is explicit through its Close button
+- Gallery `Scan selection` now runs `ROI -> auto-detect -> perspective warp -> encode`
+- Gallery preview keeps color by default (`enhanceForOcr: false`); OCR enhancement remains opt-in processor behavior
+- the user should keep the whole card inside the crop so detector geometry remains available within the selected ROI
+
+Additional native packaging fixes:
 - iOS/macOS podspec script phases declare their generated Rust archive as an Xcode output so the consuming target does not try to `-force_load` a file before it is built
 - generated iOS example signing uses Development Team `ZTM9BCJPY9`
 
 ## Remaining before v0.2 completion
 
-1. Finish Android physical Camera validation: frame ROI/warp correctness plus zoom/flash/torch regression.
-2. Re-test Gallery ROI processing including portrait EXIF-oriented images.
+1. Re-test the updated Gallery flow on Android: responsive loading state, crop stability/back blocking, perspective correction, portrait EXIF-oriented image.
+2. Re-test Gallery/native flow on iPhone after the isolate/refactor change.
 3. Validate macOS native linkage on an Apple toolchain.
 4. Record final validation evidence and close v0.2.
 
