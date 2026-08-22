@@ -8,6 +8,7 @@ export 'src/capture/card_capture_image.dart';
 export 'src/capture/card_capture_pipeline.dart';
 export 'src/capture/card_capture_result.dart';
 export 'src/capture/card_capture_view.dart';
+export 'src/crop/card_gallery_capture_view.dart';
 export 'src/crop/card_gallery_crop_view.dart';
 export 'src/crop/image_crop_selection.dart';
 export 'src/crop/image_crop_style.dart';
