@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:image/image.dart' as image_lib;
 
@@ -110,7 +111,7 @@ class CardCapturePipeline {
   }
 }
 
-CardCaptureImage _describeImage(String path, List<int> bytes) {
+CardCaptureImage _describeImage(String path, Uint8List bytes) {
   final decoded = image_lib.decodeImage(bytes);
   if (decoded == null) {
     throw StateError('Unable to decode processor output.');
