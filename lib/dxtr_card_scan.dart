@@ -1,8 +1,14 @@
 library dxtr_card_scan;
 
+export 'src/capture/capture_confirmation_mode.dart';
 export 'src/capture/capture_orientation_policy.dart';
 export 'src/capture/card_capture_controller.dart';
+export 'src/capture/card_capture_controls_config.dart';
+export 'src/capture/card_capture_image.dart';
+export 'src/capture/card_capture_pipeline.dart';
+export 'src/capture/card_capture_result.dart';
 export 'src/capture/card_capture_view.dart';
+export 'src/crop/card_gallery_crop_view.dart';
 export 'src/crop/image_crop_selection.dart';
 export 'src/crop/image_crop_style.dart';
 export 'src/crop/image_crop_view.dart';
@@ -15,3 +21,4 @@ export 'src/processor/card_scan_processor.dart';
 export 'src/processor/card_scan_processor_options.dart';
 export 'src/theme/camera_controls_style.dart';
 export 'src/theme/card_scan_theme.dart';
+export 'src/ui/card_scan_labels.dart';
