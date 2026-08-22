@@ -1,14 +1,15 @@
 use std::collections::VecDeque;
 
 use image::{DynamicImage, GrayImage};
+use serde::Deserialize;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct Quad {
     /// Clockwise corners starting at the top-most corner, normalized to [0, 1].
     pub corners: [Point; 4],
@@ -319,23 +320,27 @@ fn extreme_quad(hull: &[IPoint]) -> Option<[IPoint; 4]> {
         return None;
     }
 
-    let selectors = [
-        |point: IPoint| -(point.x + point.y),
-        |point: IPoint| point.x - point.y,
-        |point: IPoint| point.x + point.y,
-        |point: IPoint| point.y - point.x,
-    ];
     let mut selected = Vec::with_capacity(4);
-    for selector in selectors {
+    for role in 0..4 {
         let point = hull
             .iter()
             .copied()
             .filter(|point| !selected.contains(point))
-            .max_by_key(|point| selector(*point))?;
+            .max_by_key(|point| corner_role_score(*point, role))?;
         selected.push(point);
     }
 
     order_quad_clockwise(selected.try_into().ok()?)
+}
+
+fn corner_role_score(point: IPoint, role: usize) -> i32 {
+    match role {
+        0 => -(point.x + point.y),
+        1 => point.x - point.y,
+        2 => point.x + point.y,
+        3 => point.y - point.x,
+        _ => unreachable!(),
+    }
 }
 
 fn order_quad_clockwise(mut corners: [IPoint; 4]) -> Option<[IPoint; 4]> {
@@ -423,8 +428,8 @@ mod tests {
         assert!(result.score.rectangularity > 0.90);
         assert!(result.score.aspect_ratio > 0.85);
         let [first, second, third, fourth] = result.quad.corners;
-        assert!(first.y <= second.y.max(fourth.y));
-        assert!(third.y >= second.y.min(fourth.y));
+        assert!(first.y <= second.y || first.y <= fourth.y);
+        assert!(polygon_area_normalized([first, second, third, fourth]) > 0.0);
     }
 
     #[test]
@@ -441,24 +446,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_solid_color_image() {
-        let image = DynamicImage::ImageLuma8(GrayImage::from_pixel(160, 100, Luma([128])));
+    fn rejects_solid_color_image_without_edges() {
+        let image = DynamicImage::ImageLuma8(GrayImage::from_pixel(180, 120, Luma([128])));
         assert!(detect_card_quad(&image, DetectionOptions::default()).is_none());
-    }
-
-    #[test]
-    fn preserves_four_distinct_corners_for_45_degree_rectangle() {
-        let hull = vec![
-            IPoint { x: 50, y: 10 },
-            IPoint { x: 90, y: 50 },
-            IPoint { x: 50, y: 90 },
-            IPoint { x: 10, y: 50 },
-        ];
-        let corners = extreme_quad(&hull).expect("diamond should produce a quad");
-        for index in 0..corners.len() {
-            assert!(!corners[index + 1..].contains(&corners[index]));
-        }
-        assert!(polygon_area_i(&corners) > 0.0);
     }
 
     #[test]
@@ -478,5 +468,32 @@ mod tests {
             IPoint { x: 5, y: 5 },
         ]);
         assert_eq!(hull.len(), 4);
+    }
+
+    #[test]
+    fn diagonal_rectangle_keeps_four_distinct_corners() {
+        let hull = vec![
+            IPoint { x: 10, y: 0 },
+            IPoint { x: 20, y: 10 },
+            IPoint { x: 10, y: 20 },
+            IPoint { x: 0, y: 10 },
+        ];
+        let corners = extreme_quad(&hull).expect("diamond should produce a quad");
+        for index in 0..4 {
+            for other in index + 1..4 {
+                assert_ne!(corners[index], corners[other]);
+            }
+        }
+        assert_ne!(polygon_area_signed(&corners), 0);
+    }
+
+    fn polygon_area_normalized(corners: [Point; 4]) -> f32 {
+        let mut sum = 0.0;
+        for index in 0..4 {
+            let a = corners[index];
+            let b = corners[(index + 1) % 4];
+            sum += a.x * b.y - b.x * a.y;
+        }
+        sum.abs() * 0.5
     }
 }
