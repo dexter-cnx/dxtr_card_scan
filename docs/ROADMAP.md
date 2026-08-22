@@ -45,6 +45,22 @@
 
 v0.2 closed on 2026-08-22. PR #7 merged as `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5` after CI and Android/iPhone/macOS validation passed.
 
+## Capture API ownership refactor
+
+Before starting quality metrics, move end-to-end capture behavior behind package-owned high-level surfaces so host apps configure rather than reimplement the pipeline.
+
+- [x] `CardCaptureView` owns Camera discovery/lifecycle/preview
+- [x] package-owned Back / flash / torch / zoom / shutter controls
+- [x] package-owned EXIF normalization + frame ROI mapping
+- [x] package-owned rectification + final processor execution
+- [x] staged original / rectified / processed result model
+- [x] optional post-rectification confirmation
+- [x] package-owned Gallery picker with custom-picker escape hatch
+- [x] package-owned Gallery crop / rectify / process flow
+- [x] configurable Camera and Gallery labels for host localization
+- [ ] CI + physical-device regression validation
+- [ ] merge PR #9
+
 ## 0.3 Quality analysis
 - [ ] blur score
 - [ ] exposure
