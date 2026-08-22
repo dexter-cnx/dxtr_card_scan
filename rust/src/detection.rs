@@ -69,13 +69,7 @@ pub fn detect_card_quad(
     connected_edge_components(&edges, gray.width(), gray.height())
         .into_iter()
         .filter_map(|component| {
-            candidate_from_component(
-                &component,
-                &gradient,
-                gray.width(),
-                gray.height(),
-                options,
-            )
+            candidate_from_component(&component, &gradient, gray.width(), gray.height(), options)
         })
         .max_by(|a, b| a.score.total.total_cmp(&b.score.total))
 }
@@ -117,8 +111,7 @@ fn sobel_gradient(input: &GrayImage, sigma: f32) -> (Vec<f32>, f32) {
                     .get_pixel((x as i32 + dx) as u32, (y as i32 + dy) as u32)
                     .0[0] as f32
             };
-            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0)
-                + 2.0 * sample(1, 0)
+            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0) + 2.0 * sample(1, 0)
                 - sample(-1, 1)
                 + sample(1, 1);
             let gy = -sample(-1, -1) - 2.0 * sample(0, -1) - sample(1, -1)
@@ -290,8 +283,7 @@ fn convex_hull(mut points: Vec<IPoint>) -> Vec<IPoint> {
 
     let mut lower = Vec::new();
     for point in points.iter().copied() {
-        while lower.len() >= 2
-            && cross(lower[lower.len() - 2], lower[lower.len() - 1], point) <= 0
+        while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], point) <= 0
         {
             lower.pop();
         }
@@ -300,8 +292,7 @@ fn convex_hull(mut points: Vec<IPoint>) -> Vec<IPoint> {
 
     let mut upper = Vec::new();
     for point in points.iter().rev().copied() {
-        while upper.len() >= 2
-            && cross(upper[upper.len() - 2], upper[upper.len() - 1], point) <= 0
+        while upper.len() >= 2 && cross(upper[upper.len() - 2], upper[upper.len() - 1], point) <= 0
         {
             upper.pop();
         }
@@ -324,12 +315,11 @@ fn extreme_quad(hull: &[IPoint]) -> Option<[IPoint; 4]> {
     let top_right = *hull.iter().max_by_key(|point| point.x - point.y)?;
     let bottom_left = *hull.iter().min_by_key(|point| point.x - point.y)?;
     let corners = [top_left, top_right, bottom_right, bottom_left];
-    if corners.iter().enumerate().any(|(index, point)| {
-        corners
-            .iter()
-            .skip(index + 1)
-            .any(|other| point == other)
-    }) {
+    if corners
+        .iter()
+        .enumerate()
+        .any(|(index, point)| corners.iter().skip(index + 1).any(|other| point == other))
+    {
         return None;
     }
     Some(corners)
