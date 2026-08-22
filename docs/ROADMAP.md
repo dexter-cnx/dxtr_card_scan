@@ -31,11 +31,12 @@
 - [x] Android build-time Rust packaging implementation
 - [x] iOS build-time Rust packaging implementation
 - [x] macOS build-time Rust packaging implementation
-- [ ] Android native packaging CI validation
+- [x] Android native packaging CI validation
 - [ ] iOS native linkage validation
 - [ ] macOS native linkage validation
-- [ ] Camera/Gallery example processor integration
+- [x] dedicated Camera/Gallery native processor validation example
 - [ ] physical-device validation of native processor flow
+- [ ] record v0.2 validation evidence and close milestone
 
 ## 0.3 Quality analysis
 - [ ] blur score
