@@ -47,17 +47,31 @@
 - [x] Roadmap / Code Walkthrough / Project Handoff synchronized
 
 ## 0.2 Rust processor
-- Rust crate and FFI boundary
-- orientation normalization
-- ROI from capture frame or manual gallery crop selection
-- quadrilateral detection
-- perspective correction
-- crop
-- optional grayscale
-- optional resize
+- [x] Rust crate and stable C ABI boundary
+- [x] orientation normalization
+- [x] ROI from capture frame or manual Gallery crop selection
+- [x] grayscale working copy
+- [x] blur / Sobel edge detection
+- [x] connected components and convex hull extraction
+- [x] quadrilateral approximation and deterministic scoring
+- [x] zero-gradient false-positive rejection
+- [x] 45-degree/diamond corner-tie regression handling
+- [x] deterministic projective perspective correction
+- [x] detected/manual quad crop through warp
+- [x] optional OCR-oriented grayscale contrast enhancement
+- [x] optional grayscale
+- [x] optional resize
+- [x] JPEG/PNG output encoding
+- [ ] Dart FFI wrapper
+- [ ] Android native-library packaging
+- [ ] iOS native-library packaging
+- [ ] macOS native-library packaging
+- [ ] Flutter processor API + native error mapping
+- [ ] Camera/Gallery example integration
+- [ ] physical-device validation of native processor flow
 
 ## 0.3 Quality analysis
-- blur
+- blur score
 - exposure
 - card coverage
 - detection confidence
