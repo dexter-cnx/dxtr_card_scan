@@ -26,7 +26,9 @@ class CaptureFrame {
     this.maxHeightFactor = 0.82,
     this.alignment,
     this.alignmentPadding = EdgeInsets.zero,
-  })  : aspectRatio = 85.60 / 53.98,
+  })  : assert(widthFactor > 0 && widthFactor <= 1),
+        assert(maxHeightFactor > 0 && maxHeightFactor <= 1),
+        aspectRatio = 85.60 / 53.98,
         fixedSize = null,
         normalizedRect = null;
 
