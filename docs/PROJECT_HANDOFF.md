@@ -22,7 +22,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 
 ## Current branch / PR
 
-Branch: `agent/v0.2-dart-ffi-packaging`
+Branch: `agent/v0.2-example-native-flow`
 PR: pending
 
 ## Completed
@@ -43,34 +43,41 @@ Merged as PR #4. Includes grayscale/blur/Sobel/adaptive threshold, flat-image re
 
 Merged as PR #5. Includes deterministic projective warp, bilinear sampling, cyclic-quad handling, long-edge-first output, bounded `warp_long_edge` (`2..=4096`), auto-detect/manual quad integration, conservative percentile OCR enhancement, and regression coverage for tiny images/allocation bounds.
 
-## v0.2 PR4 — Dart FFI + native packaging
+### v0.2 PR4 — Dart FFI + native packaging
 
-**In progress on `agent/v0.2-dart-ffi-packaging`.**
-
-Current implementation:
+Merged as PR #6. Includes:
 - public `CardScanProcessor`
 - `processBytes()` and `processFile()`
-- Rust status/error mapping via `CardScanProcessorException`
+- `CardScanProcessorException` native status/error mapping
 - UTF-8 JSON option transport
 - `CardScanProcessorOptions`, `ProcessorQuad`, `ProcessorPoint`, `ProcessorOutputFormat`
-- Android loader uses `libdxtr_card_scan_processor.so`
-- iOS/macOS loader uses `DynamicLibrary.process()`
-- Flutter plugin metadata uses `ffiPlugin: true` for Android/iOS/macOS
-- Android CMake maps `ANDROID_ABI` to Rust targets and links the Rust staticlib into the packaged shared library
-- iOS/macOS CocoaPods build phase compiles Rust for active `PLATFORM_NAME` / `ARCHS`, creates a universal staticlib when necessary, and force-loads it so FFI symbols survive dead stripping
-- processor option JSON contract unit tests
+- Android `ffiPlugin` packaging through Gradle/CMake -> Cargo per ABI
+- iOS/macOS `ffiPlugin` packaging through CocoaPods/Xcode -> Cargo per active architecture
+- Darwin universal staticlib creation and consumer-target force-load linkage
+- Flutter >=3.22 compatibility retained with AGP 7.4.2
+- processor option JSON contract tests
 
-## Remaining before v0.2 physical validation
+## v0.2 PR5 — end-to-end native example validation
 
-1. CI/analyze/unit-test cleanup for the new Dart/native packaging surface.
-2. Android example build must prove Gradle -> CMake -> Rust -> APK packaging.
-3. Add/validate example processor invocation for Camera/Gallery paths if automated gates are stable.
-4. Validate iOS and macOS native linkage on Apple toolchains.
-5. Physical-device test of decode -> ROI/detect -> warp -> enhancement -> output.
+**In progress on `agent/v0.2-example-native-flow`.**
+
+Current implementation:
+- dedicated `example/lib/native_processor_demo.dart` entrypoint
+- Camera path: capture -> `CardScanProcessor.processFile()` -> auto-detect -> perspective warp -> OCR enhancement -> processed preview
+- Gallery path: host image picker -> `ImageCropView` -> normalized ROI -> native processing -> processed preview
+- native errors are surfaced directly in the example for device validation
+- CI builds the native validation entrypoint for Android arm64 so Dart FFI usage and Rust plugin packaging are both retained in the APK
+
+## Remaining before v0.2 completion
+
+1. CI/analyze/build cleanup for the native validation entrypoint.
+2. Validate iOS and macOS native linkage on Apple toolchains.
+3. Physical-device test of Camera auto-detect/warp and Gallery ROI processing.
+4. Record validation evidence and close v0.2.
 
 ## Native build policy
 
-The package keeps Flutter >=3.22 compatibility, so PR4 uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
+The package keeps Flutter >=3.22 compatibility, so native packaging uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
 
 `make install-hooks` installs the tracked pre-push guard. It runs Dart/Rust formatting and Rust validation locally before push.
 
