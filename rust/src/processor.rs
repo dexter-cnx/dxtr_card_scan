@@ -6,16 +6,35 @@ use image::{
 
 use crate::model::{NormalizedRect, OutputFormat, ProcessorOptions};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PixelRect {
+    left: u32,
+    top: u32,
+    right: u32,
+    bottom: u32,
+}
+
 pub fn process_encoded(input: &[u8], options: ProcessorOptions) -> Result<Vec<u8>, String> {
     let options = options.validate()?;
     let mut image =
         image::load_from_memory(input).map_err(|error| format!("decode failed: {error}"))?;
 
+    let raw_dimensions = image.dimensions();
+    let crop = options
+        .roi
+        .map(|roi| quantize_normalized_roi(roi, raw_dimensions.0, raw_dimensions.1))
+        .transpose()?;
+
     image = normalize_orientation(image, options.quarter_turns_clockwise);
 
-    if let Some(raw_roi) = options.roi {
-        let oriented_roi = raw_roi.rotated_clockwise(options.quarter_turns_clockwise);
-        image = crop_normalized(image, oriented_roi)?;
+    if let Some(raw_crop) = crop {
+        let oriented_crop = rotate_pixel_rect(
+            raw_crop,
+            raw_dimensions.0,
+            raw_dimensions.1,
+            options.quarter_turns_clockwise,
+        );
+        image = crop_pixels(image, oriented_crop)?;
     }
 
     if options.grayscale {
@@ -39,8 +58,11 @@ fn normalize_orientation(image: DynamicImage, quarter_turns_clockwise: u8) -> Dy
     }
 }
 
-fn crop_normalized(image: DynamicImage, roi: NormalizedRect) -> Result<DynamicImage, String> {
-    let (width, height) = image.dimensions();
+fn quantize_normalized_roi(
+    roi: NormalizedRect,
+    width: u32,
+    height: u32,
+) -> Result<PixelRect, String> {
     if width == 0 || height == 0 {
         return Err("decoded image has zero dimensions".to_owned());
     }
@@ -55,7 +77,55 @@ fn crop_normalized(image: DynamicImage, roi: NormalizedRect) -> Result<DynamicIm
     let right = right.clamp(left + 1, width);
     let bottom = bottom.clamp(top + 1, height);
 
-    Ok(image.crop_imm(left, top, right - left, bottom - top))
+    Ok(PixelRect {
+        left,
+        top,
+        right,
+        bottom,
+    })
+}
+
+fn rotate_pixel_rect(rect: PixelRect, width: u32, height: u32, quarter_turns: u8) -> PixelRect {
+    match quarter_turns % 4 {
+        0 => rect,
+        1 => PixelRect {
+            left: height - rect.bottom,
+            top: rect.left,
+            right: height - rect.top,
+            bottom: rect.right,
+        },
+        2 => PixelRect {
+            left: width - rect.right,
+            top: height - rect.bottom,
+            right: width - rect.left,
+            bottom: height - rect.top,
+        },
+        3 => PixelRect {
+            left: rect.top,
+            top: width - rect.right,
+            right: rect.bottom,
+            bottom: width - rect.left,
+        },
+        _ => unreachable!(),
+    }
+}
+
+fn crop_pixels(image: DynamicImage, rect: PixelRect) -> Result<DynamicImage, String> {
+    let (width, height) = image.dimensions();
+    if rect.left >= rect.right
+        || rect.top >= rect.bottom
+        || rect.right > width
+        || rect.bottom > height
+    {
+        return Err("pixel crop is outside the oriented image".to_owned());
+    }
+
+    Ok(image.crop_imm(
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+    ))
 }
 
 fn resize_to_max_dimension(image: DynamicImage, max_dimension: u32) -> DynamicImage {
@@ -98,11 +168,7 @@ mod tests {
 
     fn fixture(width: u32, height: u32) -> Vec<u8> {
         let image = ImageBuffer::from_fn(width, height, |x, y| {
-            Rgb([
-                (x % 255) as u8,
-                (y % 255) as u8,
-                ((x + y) % 255) as u8,
-            ])
+            Rgb([(x % 255) as u8, (y % 255) as u8, ((x + y) % 255) as u8])
         });
         let mut bytes = Vec::new();
         DynamicImage::ImageRgb8(image)
@@ -149,6 +215,46 @@ mod tests {
         .unwrap();
 
         assert_eq!(decode(&output).dimensions(), (30, 40));
+    }
+
+    #[test]
+    fn preserves_pixel_aligned_roi_when_rotation_complements_recurring_fraction() {
+        let output = process_encoded(
+            &fixture(3, 3),
+            ProcessorOptions {
+                quarter_turns_clockwise: 1,
+                roi: Some(NormalizedRect {
+                    left: 1.0 / 3.0,
+                    top: 0.0,
+                    right: 1.0,
+                    bottom: 1.0 / 3.0,
+                }),
+                output_format: OutputFormat::Png,
+                ..ProcessorOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(decode(&output).dimensions(), (1, 2));
+    }
+
+    #[test]
+    fn rotates_quantized_pixel_bounds_exactly() {
+        let rect = PixelRect {
+            left: 1,
+            top: 0,
+            right: 3,
+            bottom: 1,
+        };
+        assert_eq!(
+            rotate_pixel_rect(rect, 3, 3, 1),
+            PixelRect {
+                left: 2,
+                top: 1,
+                right: 3,
+                bottom: 3,
+            }
+        );
     }
 
     #[test]
