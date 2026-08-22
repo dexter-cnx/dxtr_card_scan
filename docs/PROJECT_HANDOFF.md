@@ -20,6 +20,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 8. v0.2 detection remains deterministic classical CV.
 9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
 10. Camera detection should be constrained by the capture-frame ROI before auto-detect so unrelated high-contrast background edges do not dominate quadrilateral selection.
+11. Perspective-warp canonicalization must preserve the source top direction after long-edge normalization so cyclic quad start index cannot introduce a 180-degree output flip.
 
 ## Current branch / PR
 
@@ -67,9 +68,10 @@ Physical Android validation already proved:
 - Dart FFI calls Rust successfully
 - Rust decode/process/encode returns bytes
 - Flutter renders the processed bytes
+- integrated Camera output no longer flips upside down after warp canonicalization was fixed on device
 
 The first physical Camera run exposed two integration issues rather than an FFI failure:
-1. Camera JPEG orientation metadata was not normalized before Rust decode, producing an upside-down output.
+1. Camera/display orientation and warp canonicalization could produce an upside-down output.
 2. Whole-frame auto detection could select strong background geometry and warp an otherwise straight card.
 
 Current fix:
@@ -79,13 +81,15 @@ Current fix:
 - captured JPEG is decoded and `bakeOrientation()` is applied before processing
 - the resolved capture frame is mapped through `PreviewGeometry` into normalized source-image ROI coordinates
 - Rust auto-detect/warp runs only inside that frame-derived ROI
+- warp canonicalization now compares the two long-edge midpoints and chooses the source-top long edge as output top, removing 180-degree cyclic-start ambiguity
+- Rust regression coverage includes a quad whose cyclic order starts on the bottom edge
 - OCR enhancement and processed preview follow the warp
 - Gallery also normalizes EXIF orientation before crop/processing so UI ROI and raw pixels share one coordinate system
 
 ## Remaining before v0.2 completion
 
 1. CI/analyze/Android-build cleanup for the integrated example.
-2. Re-test Android physical Camera output: orientation, frame ROI, warp correctness, zoom/flash/torch.
+2. Finish Android physical Camera validation: frame ROI/warp correctness plus zoom/flash/torch regression.
 3. Re-test Gallery ROI processing including portrait EXIF-oriented images.
 4. Validate iOS and macOS native linkage on Apple toolchains.
 5. Record final validation evidence and close v0.2.
