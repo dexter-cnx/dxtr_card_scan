@@ -13,3 +13,4 @@ pubspec.lock
 android/.cxx/
 example/android/
 example/ios/
+example/macos/
