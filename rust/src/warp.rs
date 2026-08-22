@@ -94,6 +94,18 @@ fn orient_long_edge_first(mut corners: [PixelPoint; 4]) -> [PixelPoint; 4] {
     if pair_b > pair_a {
         corners.rotate_left(1);
     }
+
+    // The long-edge pair can still be 180 degrees ambiguous: a cyclic quad
+    // may begin on the bottom edge even though its winding is otherwise
+    // correct. Keep the source image's upper long edge mapped to the output
+    // top so rectification never turns an upright card upside down merely
+    // because the detector chose a different cyclic start index.
+    let first_edge_mid_y = (corners[0].y + corners[1].y) * 0.5;
+    let opposite_edge_mid_y = (corners[2].y + corners[3].y) * 0.5;
+    if opposite_edge_mid_y < first_edge_mid_y {
+        corners.rotate_left(2);
+    }
+
     corners
 }
 
@@ -253,6 +265,29 @@ mod tests {
         assert!(width > height);
         assert!((width as i32 - 79).abs() <= 1);
         assert!((height as i32 - 40).abs() <= 1);
+    }
+
+    #[test]
+    fn cyclic_start_on_bottom_edge_does_not_flip_output_upside_down() {
+        let result = warp_quad(
+            &fixture(),
+            Quad {
+                corners: [
+                    Point { x: 0.90, y: 0.75 },
+                    Point { x: 0.10, y: 0.75 },
+                    Point { x: 0.10, y: 0.25 },
+                    Point { x: 0.90, y: 0.25 },
+                ],
+            },
+            WarpOptions::default(),
+        )
+        .unwrap()
+        .to_rgba8();
+
+        let top_left = result.get_pixel(0, 0).0;
+        let bottom_left = result.get_pixel(0, result.height() - 1).0;
+        assert!(top_left[1] < bottom_left[1]);
+        assert!(top_left[0] < result.get_pixel(result.width() - 1, 0).0[0]);
     }
 
     #[test]

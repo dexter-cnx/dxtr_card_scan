@@ -13,16 +13,16 @@ Deterministic Rust preprocessing boundary used by the dxtr_card_scan Flutter pac
   s.dependency 'FlutterMacOS'
   s.platform = :osx, '10.14'
 
+  rust_archive = '${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a'
   s.script_phase = {
     :name => 'Build dxtr_card_scan Rust processor',
     :execution_position => :before_compile,
-    :script => 'bash "${PODS_TARGET_SRCROOT}/../tool/build_rust_darwin.sh" "${PODS_TARGET_SRCROOT}/../rust/Cargo.toml" "${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a" "${PODS_TARGET_SRCROOT}/build/rust-target"'
+    :script => 'bash "${PODS_TARGET_SRCROOT}/../tool/build_rust_darwin.sh" "${PODS_TARGET_SRCROOT}/../rust/Cargo.toml" "${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a" "${PODS_TARGET_SRCROOT}/build/rust-target"',
+    :output_files => [rust_archive]
   }
 
   s.pod_target_xcconfig = {
-    'DEFINES_MODULE' => 'YES'
-  }
-  s.user_target_xcconfig = {
-    'OTHER_LDFLAGS' => '$(inherited) -force_load "$(PODS_ROOT)/../.symlinks/plugins/dxtr_card_scan/macos/build/$(PLATFORM_NAME)/libdxtr_card_scan_processor.a"'
+    'DEFINES_MODULE' => 'YES',
+    'OTHER_LDFLAGS' => '$(inherited) -force_load "${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a"'
   }
 end

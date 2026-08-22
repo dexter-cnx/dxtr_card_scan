@@ -11,6 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   camera: ^0.11.0+2
+  file_selector: ^1.0.3
+  image: ^4.9.2
   image_picker: ^1.1.2
   dxtr_card_scan:
     path: ..
