@@ -1,6 +1,8 @@
 import '../geometry/normalized_rect.dart';
 import 'card_capture_image.dart';
 
+export '../geometry/normalized_rect.dart';
+
 /// Final result produced by [CardCaptureView]'s capture pipeline.
 class CardCaptureResult {
   const CardCaptureResult({
