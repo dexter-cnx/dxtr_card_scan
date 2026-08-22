@@ -8,7 +8,7 @@
 - [x] normalized frame geometry
 - [x] configurable frame alignment with optional alignment padding
 - [x] capture orientation policy: any / portrait-only / landscape-only
-- [x] shared `DxtrCardScanTheme` ThemeExtension for Camera and Gallery visuals
+- [x] shared `CardScanTheme` ThemeExtension for Camera and Gallery visuals
 - [x] per-widget style override above inherited package theme
 - [x] `BoxFit.cover` preview-to-image mapping
 - [x] explicit captured-image rotation/mirroring contract
@@ -24,7 +24,8 @@
 - [x] independent torch toggle
 - [x] pinch-only zoom using device min/max zoom levels
 - [x] current zoom scale badge
-- [ ] physical-device validation for flash, torch, zoom, and landscape control placement
+- [x] themed shutter / Back / Flash / Torch / Zoom badge controls
+- [x] physical-device validation for flash, torch, zoom, shutter, Back, theme, and landscape control placement
 - [ ] decide whether a stable camera-control abstraction belongs in core or an optional camera adapter before 1.0
 
 ## 0.1.2 Gallery crop flow
@@ -35,9 +36,15 @@
 - [x] package returns `ImageCropSelection` with normalized source-image geometry
 - [x] secondary-screen back navigation for Gallery crop
 - [x] secondary-screen back control for full-screen Camera flow
-- [x] Gallery crop visuals inherit `DxtrCardScanTheme.imageCropStyle`
+- [x] Gallery crop visuals inherit `CardScanTheme.imageCropStyle`
+- [x] physical-device validation for Gallery selection/crop and Camera back placement
 - [ ] optional Gallery ratio/preset constraint matching Camera frame constraints
-- [ ] physical-device validation for Gallery selection/crop and Camera back placement
+
+## 0.1 completion gate
+- [x] automated CI passes
+- [x] physical-device validation passes
+- [x] naming cleanup complete (`Dxtr`/`dxtr` reserved for package/repository identity)
+- [x] Roadmap / Code Walkthrough / Project Handoff synchronized
 
 ## 0.2 Rust processor
 - Rust crate and FFI boundary
