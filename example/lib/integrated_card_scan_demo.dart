@@ -1,22 +1,18 @@
 import 'dart:io';
 
-import 'package:camera/camera.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:flutter/material.dart';
 
 import 'camera_scan_page.dart';
 import 'gallery_scan_page.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final cameras = Platform.isMacOS ? <CameraDescription>[] : await availableCameras();
-  runApp(IntegratedCardScanDemo(cameras: cameras));
+  runApp(const IntegratedCardScanDemo());
 }
 
 class IntegratedCardScanDemo extends StatelessWidget {
-  const IntegratedCardScanDemo({required this.cameras, super.key});
-
-  final List<CameraDescription> cameras;
+  const IntegratedCardScanDemo({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,15 +21,13 @@ class IntegratedCardScanDemo extends StatelessWidget {
       theme: ThemeData.dark(useMaterial3: true).copyWith(
         extensions: const [CardScanTheme()],
       ),
-      home: _HomePage(cameras: cameras),
+      home: const _HomePage(),
     );
   }
 }
 
 class _HomePage extends StatelessWidget {
-  const _HomePage({required this.cameras});
-
-  final List<CameraDescription> cameras;
+  const _HomePage();
 
   @override
   Widget build(BuildContext context) {
@@ -49,15 +43,17 @@ class _HomePage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 FilledButton.icon(
-                  onPressed: cameras.isEmpty
+                  onPressed: Platform.isMacOS
                       ? null
                       : () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => CameraScanPage(cameras: cameras),
+                              builder: (_) => const CameraScanPage(),
                             ),
                           ),
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: Text(Platform.isMacOS ? 'Camera (mobile only)' : 'Camera'),
+                  label: Text(
+                    Platform.isMacOS ? 'Camera (mobile only)' : 'Camera',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.tonalIcon(
