@@ -1,4 +1,4 @@
-.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android ci
+.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android rust-format rust-format-check rust-clippy rust-test rust-ci ci
 
 get:
 	flutter pub get
@@ -27,4 +27,18 @@ example-platforms:
 example-build-android: example-get example-platforms
 	cd example && flutter build apk --debug
 
-ci: get format-check analyze test example-analyze
+rust-format:
+	cargo fmt --manifest-path rust/Cargo.toml
+
+rust-format-check:
+	cargo fmt --manifest-path rust/Cargo.toml --check
+
+rust-clippy:
+	cargo clippy --manifest-path rust/Cargo.toml --all-targets -- -D warnings
+
+rust-test:
+	cargo test --manifest-path rust/Cargo.toml
+
+rust-ci: rust-format-check rust-clippy rust-test
+
+ci: get format-check analyze test example-analyze rust-ci
