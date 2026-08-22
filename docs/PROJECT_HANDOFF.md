@@ -28,25 +28,28 @@ Repository: `dexter-cnx/dxtr_card_scan`
 Branch: `agent/v0.1-capture-foundation`
 PR: #2
 
-## v0.1 Capture foundation
+## v0.1 status
 
-Confirmed on physical device:
-- back camera opens
-- portrait ID-1 frame is centered and proportionally reasonable
-- settled portrait preview is not squeezed/stretched
-- settled landscape preview/frame geometry is correct
-- short transient distortion can appear during rotation, but settled preview is correct
+**Implementation complete. Automated validation passed. Physical-device validation passed on 2026-08-22.**
 
-Implemented foundation:
-- Flutter package scaffold
-- normalized geometry and preview-to-image mapping
-- explicit captured-image rotation/mirroring contract
-- configurable ID-1 frame with landscape height clamping
-- camera-plugin-agnostic capture view/controller
-- real-camera reference example using Flutter `camera`
-- CI analyze/test/example/Android-build gates
+Validated on physical device:
+- Home -> Camera / Gallery navigation
+- Camera Back in portrait and both landscape orientations
+- Back remains outside the scan frame
+- Flash off / auto / on
+- Torch toggle and restore behavior
+- pinch-only zoom and zoom badge
+- shutter/control theming
+- settled portrait and landscape camera geometry
+- configurable frame alignment/padding behavior
+- portrait-only / landscape-only capture-policy behavior
+- Gallery picker -> crop -> Use crop
+- Gallery crop on real images
+- custom `CardScanTheme` across Camera frame, Camera controls, and Gallery crop
 
-### Camera frame geometry contract
+Latest pre-validation code CI passed in run `32558024492`. Final documentation-only sync must also remain green before merge.
+
+## Capture frame geometry contract
 
 `CaptureFrame` supports:
 - `aspectRatio`
@@ -57,11 +60,11 @@ Implemented foundation:
 - `alignment`
 - `alignmentPadding`
 
-`alignment == null` keeps the original centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the usable viewport before alignment and auto-size calculations. This supports top/bottom/side placement with configurable pitch from the edge.
+`alignment == null` keeps centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the usable viewport before alignment and auto-size calculations. This supports top/bottom/side placement with configurable pitch from the edge.
 
-The example still uses centered `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)` unless a host opts into another alignment.
+The example uses centered `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)` unless a host opts into another alignment.
 
-### Capture orientation contract
+## Capture orientation contract
 
 `CardCaptureView` supports:
 
@@ -79,11 +82,13 @@ When orientation is rejected:
 
 The package never forces host OS orientation.
 
-### Camera vs Gallery frame constraints
+## Camera vs Gallery frame constraints
 
 Camera uses `CaptureFrame` with explicit ratio/size/alignment options. Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. Gallery should remain capable of freeform cropping while adding an optional ratio/preset constraint later so a host can request ID-1 or another document ratio.
 
-### Theme contract
+This Gallery ratio/preset item remains intentionally deferred and does not block v0.1 completion.
+
+## Theme contract
 
 Package-specific visuals use `CardScanTheme`, a Flutter `ThemeExtension`:
 
@@ -131,12 +136,6 @@ Landscape:
 - Back at the top of the same edge as shutter, outside the central scan frame
 - opposite edge: Flash top / Zoom center / Torch bottom
 
-Capabilities:
-- Flash off / auto / on
-- independent Torch toggle restoring prior still-photo flash mode
-- device min/max zoom queried at initialization
-- pinch-only zoom with current-scale badge
-
 ## Example home + Gallery crop flow
 
 Example Home has:
@@ -155,31 +154,25 @@ Gallery crop:
 
 ## Naming cleanup completed
 
-Public theme API is now `CardScanTheme` in `lib/src/theme/card_scan_theme.dart`. The old `DxtrCardScanTheme` type/file and prefixed test file were removed rather than retained as deprecated aliases. `lib/dxtr_card_scan.dart` remains prefixed because it is the package barrel/import identity.
+Public theme API is `CardScanTheme` in `lib/src/theme/card_scan_theme.dart`. The old `DxtrCardScanTheme` type/file and prefixed test file were removed rather than retained as deprecated aliases. `lib/dxtr_card_scan.dart` remains prefixed because it is the package barrel/import identity.
 
-## Automated validation required
+## v0.1 completion / merge gate
 
-Latest material changes must pass:
-- package analyze
-- package unit tests, including alignment/padding, orientation policy, and theme resolution/interpolation
-- example dependencies/analyze
-- Android/iOS host scaffolding generation
+Completed:
+- package analyze/tests
+- alignment/padding tests
+- orientation-policy tests
+- theme resolution/interpolation tests
+- example analyze
+- Android/iOS host scaffold generation
 - Android debug APK build
+- physical-device Camera/Gallery validation
 
-## Next physical-device retest
-
-Validate:
-1. Home -> Camera / Gallery navigation.
-2. Camera Back in portrait and both landscape orientations.
-3. Camera Back remains outside scan frame.
-4. Flash/Torch/pinch zoom behavior.
-5. Gallery picker -> crop -> Use crop.
-6. Gallery crop on portrait and landscape source images.
-7. top/bottom frame alignment with non-zero padding when configured.
-8. `portraitOnly` / `landscapeOnly` mismatch behavior when configured.
-9. a custom `CardScanTheme` applied across Camera frame, Camera controls, and Gallery crop.
-
-Do not begin v0.2 until this targeted device pass is complete.
+Next action after final documentation CI is green:
+1. mark PR #2 Ready for review;
+2. merge PR #2;
+3. remove `agent/v0.1-capture-foundation` if no longer needed;
+4. start v0.2 on a new branch from `main`.
 
 ## Next milestone: v0.2 Rust processor
 
