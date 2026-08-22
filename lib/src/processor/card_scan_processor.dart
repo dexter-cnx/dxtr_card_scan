@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
@@ -63,7 +64,7 @@ class CardScanProcessor {
       throw const ArgumentError('input image must not be empty');
     }
 
-    final optionsBytes = Uint8List.fromList(options.toJsonString().codeUnits);
+    final optionsBytes = Uint8List.fromList(utf8.encode(options.toJsonString()));
     final inputPtr = calloc<Uint8>(input.length);
     final optionsPtr = calloc<Uint8>(optionsBytes.length);
     try {
