@@ -23,10 +23,11 @@ void main() {
     });
 
     expect(detection.confidence, .82);
-    expect(
-      detection.boundingRect(padding: .02),
-      const NormalizedRect(left: .08, top: .13, right: .87, bottom: .82),
-    );
+    final rect = detection.boundingRect(padding: .02);
+    expect(rect.left, closeTo(.08, 1e-12));
+    expect(rect.top, closeTo(.13, 1e-12));
+    expect(rect.right, closeTo(.87, 1e-12));
+    expect(rect.bottom, closeTo(.82, 1e-12));
   });
 
   test('bounding rect clamps padding to normalized image bounds', () {
