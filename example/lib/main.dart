@@ -183,11 +183,13 @@ class CameraCapturePage extends StatefulWidget {
   State<CameraCapturePage> createState() => _CameraCapturePageState();
 }
 
-class _CameraCapturePageState extends State<CameraCapturePage> {
+class _CameraCapturePageState extends State<CameraCapturePage>
+    with WidgetsBindingObserver {
   final CardCaptureController _captureController = CardCaptureController();
   CameraController? _camera;
   XFile? _lastCapture;
   Object? _error;
+  bool _initializingCamera = false;
 
   FlashMode _flashMode = FlashMode.off;
   bool _torchEnabled = false;
@@ -199,15 +201,40 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _initialize();
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _releaseCamera();
+    }
+  }
+
+  Future<void> _releaseCamera() async {
+    final camera = _camera;
+    _camera = null;
+    if (mounted) setState(() {});
+    await camera?.dispose();
+  }
+
   Future<void> _initialize() async {
+    if (_initializingCamera || _camera != null) return;
     if (widget.cameras.isEmpty) {
       setState(() => _error = StateError('No camera is available.'));
       return;
     }
 
+    _initializingCamera = true;
     final back = widget.cameras.where(
       (camera) => camera.lensDirection == CameraLensDirection.back,
     );
@@ -223,12 +250,16 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
       final minZoom = await controller.getMinZoomLevel();
       final maxZoom = await controller.getMaxZoomLevel();
       await controller.setFlashMode(FlashMode.off);
-      if (!mounted) {
+      if (!mounted ||
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         await controller.dispose();
         return;
       }
       setState(() {
         _camera = controller;
+        _error = null;
+        _flashMode = FlashMode.off;
+        _torchEnabled = false;
         _minZoom = minZoom;
         _maxZoom = maxZoom;
         _zoom = minZoom;
@@ -236,6 +267,8 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
     } catch (error) {
       await controller.dispose();
       if (mounted) setState(() => _error = error);
+    } finally {
+      _initializingCamera = false;
     }
   }
 
@@ -299,6 +332,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _camera?.dispose();
     _captureController.dispose();
     super.dispose();
