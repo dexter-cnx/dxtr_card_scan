@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as image_lib;
 
 import '../geometry/normalized_rect.dart';
+import '../processor/card_scan_detection.dart';
 import '../processor/card_scan_processor.dart';
 import '../processor/card_scan_processor_options.dart';
 import 'card_capture_image.dart';
@@ -55,6 +56,10 @@ class CardCapturePipeline {
         ),
       );
     });
+  }
+
+  Future<CardScanDetection?> detect(CardCaptureImage image) {
+    return Isolate.run(() => CardScanProcessor().detectFile(image.path));
   }
 
   Future<CardCaptureImage> cropAndRectify({
