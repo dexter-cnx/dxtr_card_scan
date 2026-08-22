@@ -58,9 +58,8 @@ pub unsafe extern "C" fn card_scan_process(
         let options = if options_json_ptr.is_null() || options_json_len == 0 {
             ProcessorOptions::default()
         } else {
-            let options_json = unsafe {
-                std::slice::from_raw_parts(options_json_ptr, options_json_len)
-            };
+            let options_json =
+                unsafe { std::slice::from_raw_parts(options_json_ptr, options_json_len) };
             match serde_json::from_slice::<ProcessorOptions>(options_json) {
                 Ok(options) => options,
                 Err(error) => {
