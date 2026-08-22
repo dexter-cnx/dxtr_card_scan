@@ -60,11 +60,31 @@ Library loading:
 `android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and uses the NDK compiler supplied by CMake as Cargo's linker. Cargo builds the Rust staticlib; CMake force-links it into `libdxtr_card_scan_processor.so` so exported C ABI symbols remain available to Dart FFI. No binary is committed.
 
 ### iOS / macOS
-The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. `OTHER_LDFLAGS -force_load` keeps the Rust C ABI symbols from being stripped.
+The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. Consumer-target `OTHER_LDFLAGS -force_load` keeps the Rust C ABI symbols from being stripped.
+
+## Native validation example
+
+`example/lib/native_processor_demo.dart` is the dedicated end-to-end validation entrypoint.
+
+Camera flow:
+1. initialize the back camera
+2. capture JPEG
+3. call `CardScanProcessor.processFile()` with `autoDetect: true`
+4. run detector -> perspective warp -> OCR enhancement -> JPEG encode
+5. show the processed bytes in a zoomable preview
+
+Gallery flow:
+1. host-owned `image_picker` selects a source image
+2. `ImageCropView` returns `ImageCropSelection.normalizedRect`
+3. pass that normalized rectangle to `CardScanProcessorOptions.roi`
+4. run native crop/enhancement/resize/encode
+5. show the processed bytes in a zoomable preview
+
+Processor/native exceptions are deliberately surfaced in the validation UI so device tests expose linker, FFI, detection, and processing failures directly.
 
 ## Validation tooling
 
-`make install-hooks` installs the tracked pre-push guard. `make ci` covers Flutter gates plus Rust format, Clippy, and tests. PR4 additionally relies on the Android example build as the first automated Gradle -> CMake -> Cargo -> APK integration gate.
+`make install-hooks` installs the tracked pre-push guard. `make ci` covers Flutter gates plus Rust format, Clippy, and tests. CI builds the Android arm64 native validation entrypoint so its Dart FFI references and Rust native plugin packaging are retained in the APK.
 
 ## Naming rule
 
@@ -76,4 +96,5 @@ The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` 
 - PR #3 Rust foundation merged.
 - PR #4 deterministic quad detection merged.
 - PR #5 perspective warp/OCR enhancement merged.
-- PR4 Dart FFI/native packaging is in progress; physical native-processing validation is the next manual gate after automated CI stabilizes.
+- PR #6 Dart FFI/native packaging merged.
+- native Camera/Gallery validation entrypoint is the final v0.2 gate before physical-device evidence and milestone closure.
