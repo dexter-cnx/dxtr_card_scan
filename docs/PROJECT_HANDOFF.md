@@ -72,6 +72,10 @@ Physical Android validation on 2026-08-22 proved:
 - integrated Camera output no longer flips upside down after warp canonicalization was fixed on device
 - Camera frame ROI / warp behavior is acceptable on device
 - zoom / flash / torch / Camera controls regressions did not reproduce
+- updated Gallery shows a responsive loading state after picking an image
+- crop interaction remains stable with system/predictive-back blocked on the crop route
+- Gallery `Scan selection` performs perspective correction successfully
+- Gallery processed preview remains color instead of looking like an OCR-enhanced grayscale crop
 
 Physical iPhone 11 validation on 2026-08-22 proved:
 - iOS example builds and launches on a physical device
@@ -92,12 +96,14 @@ Gallery physical testing then exposed three integration/UX issues:
 2. Android system/predictive-back gestures could interfere with crop interaction near screen edges.
 3. Gallery processing only did ROI crop + OCR enhancement, so the output looked like a grayscale crop rather than a rectified scan.
 
-Current Gallery fix:
+The updated Gallery flow now passes Android physical re-test for all four target behaviors: visible responsive loading, stable crop/back protection, perspective correction, and color output.
+
+Current Gallery implementation:
 - `example/lib/background_scan_tasks.dart` runs image decode/EXIF bake and synchronous FFI/Rust processing through `Isolate.run()`
 - the integrated example is split into dedicated Camera / Gallery / processed-preview files
 - Gallery shows a blocking progress overlay and status text while preparing or processing
 - Gallery crop route uses `PopScope` to block device/system back gestures; leaving the page is explicit through its Close button
-- Gallery `Scan selection` now runs `ROI -> auto-detect -> perspective warp -> encode`
+- Gallery `Scan selection` runs `ROI -> auto-detect -> perspective warp -> encode`
 - Gallery preview keeps color by default (`enhanceForOcr: false`); OCR enhancement remains opt-in processor behavior
 - the user should keep the whole card inside the crop so detector geometry remains available within the selected ROI
 
@@ -107,10 +113,10 @@ Additional native packaging fixes:
 
 ## Remaining before v0.2 completion
 
-1. Re-test the updated Gallery flow on Android: responsive loading state, crop stability/back blocking, perspective correction, portrait EXIF-oriented image.
-2. Re-test Gallery/native flow on iPhone after the isolate/refactor change.
-3. Validate macOS native linkage on an Apple toolchain.
-4. Record final validation evidence and close v0.2.
+1. Re-test Gallery/native flow on iPhone after the isolate/refactor change.
+2. Validate macOS native linkage and Gallery processing on an Apple toolchain.
+3. Confirm PR #7 CI/review state is clean.
+4. Record final validation evidence, merge PR #7, and close v0.2.
 
 ## Native build policy
 
