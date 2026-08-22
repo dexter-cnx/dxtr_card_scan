@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
@@ -404,10 +405,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
                 ),
               ),
             if (_busy)
-              Positioned.fill(
+              const Positioned.fill(
                 child: IgnorePointer(
                   child: ColoredBox(
-                    color: const Color(0x33000000),
+                    color: Color(0x33000000),
                     child: Center(child: CircularProgressIndicator()),
                   ),
                 ),
