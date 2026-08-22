@@ -70,6 +70,14 @@ Physical Android validation already proved:
 - Flutter renders the processed bytes
 - integrated Camera output no longer flips upside down after warp canonicalization was fixed on device
 
+Physical iPhone 11 validation on 2026-08-22 proved:
+- iOS example builds and launches on a physical device
+- Camera capture succeeds
+- the CocoaPods/Xcode script phase builds the Rust static library successfully for `iphoneos`
+- the consuming Runner links the generated archive successfully
+- Dart FFI invokes the Rust processor on-device
+- processed output is returned and displayed successfully
+
 The first physical Camera run exposed two integration issues rather than an FFI failure:
 1. Camera/display orientation and warp canonicalization could produce an upside-down output.
 2. Whole-frame auto detection could select strong background geometry and warp an otherwise straight card.
@@ -85,14 +93,15 @@ Current fix:
 - Rust regression coverage includes a quad whose cyclic order starts on the bottom edge
 - OCR enhancement and processed preview follow the warp
 - Gallery also normalizes EXIF orientation before crop/processing so UI ROI and raw pixels share one coordinate system
+- iOS/macOS podspec script phases declare their generated Rust archive as an Xcode output so the consuming target does not try to `-force_load` a file before it is built
+- generated iOS example signing uses Development Team `ZTM9BCJPY9`
 
 ## Remaining before v0.2 completion
 
-1. CI/analyze/Android-build cleanup for the integrated example.
-2. Finish Android physical Camera validation: frame ROI/warp correctness plus zoom/flash/torch regression.
-3. Re-test Gallery ROI processing including portrait EXIF-oriented images.
-4. Validate iOS and macOS native linkage on Apple toolchains.
-5. Record final validation evidence and close v0.2.
+1. Finish Android physical Camera validation: frame ROI/warp correctness plus zoom/flash/torch regression.
+2. Re-test Gallery ROI processing including portrait EXIF-oriented images.
+3. Validate macOS native linkage on an Apple toolchain.
+4. Record final validation evidence and close v0.2.
 
 ## Native build policy
 
