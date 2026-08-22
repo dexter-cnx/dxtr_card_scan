@@ -84,6 +84,7 @@ Physical iPhone 11 validation on 2026-08-22 proved:
 - the consuming Runner links the generated archive successfully
 - Dart FFI invokes the Rust processor on-device
 - processed output is returned and displayed successfully
+- Gallery still works after the isolate/refactor change: image preparation, crop, native scan processing, perspective correction, and processed preview all complete successfully
 
 The first physical Camera run exposed two integration issues rather than an FFI failure:
 1. Camera/display orientation and warp canonicalization could produce an upside-down output.
@@ -96,7 +97,7 @@ Gallery physical testing then exposed three integration/UX issues:
 2. Android system/predictive-back gestures could interfere with crop interaction near screen edges.
 3. Gallery processing only did ROI crop + OCR enhancement, so the output looked like a grayscale crop rather than a rectified scan.
 
-The updated Gallery flow now passes Android physical re-test for all four target behaviors: visible responsive loading, stable crop/back protection, perspective correction, and color output.
+The updated Gallery flow passes Android physical re-test for all four target behaviors and also passes iPhone 11 physical re-test after the isolate/refactor change.
 
 Current Gallery implementation:
 - `example/lib/background_scan_tasks.dart` runs image decode/EXIF bake and synchronous FFI/Rust processing through `Isolate.run()`
@@ -110,13 +111,13 @@ Current Gallery implementation:
 Additional native packaging fixes:
 - iOS/macOS podspec script phases declare their generated Rust archive as an Xcode output so the consuming target does not try to `-force_load` a file before it is built
 - generated iOS example signing uses Development Team `ZTM9BCJPY9`
+- example host bootstrap now generates Android, iOS, and macOS scaffolding; macOS validation skips Camera initialization and targets Gallery/native processing
 
 ## Remaining before v0.2 completion
 
-1. Re-test Gallery/native flow on iPhone after the isolate/refactor change.
-2. Validate macOS native linkage and Gallery processing on an Apple toolchain.
-3. Confirm PR #7 CI/review state is clean.
-4. Record final validation evidence, merge PR #7, and close v0.2.
+1. Validate macOS native linkage and Gallery processing on an Apple toolchain.
+2. Confirm PR #7 CI/review state is clean.
+3. Record final validation evidence, merge PR #7, and close v0.2.
 
 ## Native build policy
 
