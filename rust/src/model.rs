@@ -25,31 +25,6 @@ impl NormalizedRect {
         }
         Ok(self)
     }
-
-    pub fn rotated_clockwise(self, quarter_turns: u8) -> Self {
-        match quarter_turns % 4 {
-            0 => self,
-            1 => Self {
-                left: 1.0 - self.bottom,
-                top: self.left,
-                right: 1.0 - self.top,
-                bottom: self.right,
-            },
-            2 => Self {
-                left: 1.0 - self.right,
-                top: 1.0 - self.bottom,
-                right: 1.0 - self.left,
-                bottom: 1.0 - self.top,
-            },
-            3 => Self {
-                left: self.top,
-                top: 1.0 - self.right,
-                right: self.bottom,
-                bottom: 1.0 - self.left,
-            },
-            _ => unreachable!(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
