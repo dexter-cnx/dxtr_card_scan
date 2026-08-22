@@ -1,0 +1,15 @@
+[package]
+name = "dxtr_card_scan_processor"
+version = "0.2.0-dev.1"
+edition = "2021"
+license = "MIT"
+description = "Deterministic Rust image preprocessing core for dxtr_card_scan"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
