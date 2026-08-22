@@ -10,5 +10,6 @@ coverage/
 rust/target/
 pubspec.lock
 **/.flutter-plugins-dependencies
+android/.cxx/
 example/android/
 example/ios/
