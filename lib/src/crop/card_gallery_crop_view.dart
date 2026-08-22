@@ -76,16 +76,29 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     _prepare();
   }
 
+  @override
+  void didUpdateWidget(CardGalleryCropView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sourcePath != widget.sourcePath) {
+      _prepared = null;
+      _selection = null;
+      _rectified = null;
+      _prepare();
+    }
+  }
+
   Future<void> _prepare() async {
+    final sourcePath = widget.sourcePath;
     setState(() {
       _busy = true;
       _status = widget.labels.preparing;
       _error = null;
     });
     try {
-      final prepared = await _pipeline.prepare(widget.sourcePath);
+      final prepared = await _pipeline.prepare(sourcePath);
+      if (!mounted || sourcePath != widget.sourcePath) return;
       await widget.onOriginalReady?.call(prepared.original);
-      if (!mounted) return;
+      if (!mounted || sourcePath != widget.sourcePath) return;
       setState(() {
         _prepared = prepared;
         _selection = ImageCropSelection(
@@ -94,9 +107,11 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
         );
       });
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && sourcePath == widget.sourcePath) {
+        setState(() => _error = error);
+      }
     } finally {
-      if (mounted) {
+      if (mounted && sourcePath == widget.sourcePath) {
         setState(() {
           _busy = false;
           _status = null;
