@@ -185,10 +185,7 @@ class _GalleryScanPageState extends State<GalleryScanPage> {
               Positioned.fill(
                 child: AbsorbPointer(
                   child: ColoredBox(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surface
-                        .withValues(alpha: .72),
+                    color: const Color(0xB8000000),
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
