@@ -17,16 +17,16 @@ Repository: `dexter-cnx/dxtr_card_scan`
 5. Camera orientation/mirroring must be explicit.
 6. Grayscale and hard thresholding are optional and should not be aggressive defaults.
 7. Keep future `CardTemplate` and named OCR regions compatible with normalized coordinates.
-8. Camera-specific controls may be demonstrated by the official `camera` plugin example, but core remains camera-plugin agnostic unless a stable adapter boundary is deliberately introduced.
-9. File/image picking belongs to the host/example. Core accepts an image path and crop geometry but does not depend on an image picker.
-10. Capture orientation policy must not lock the host application's OS orientation.
-11. Camera and Gallery visuals inherit host theming. Package-specific visual tokens use `CardScanTheme`; standard Material controls still inherit host `ThemeData` / `ColorScheme`.
-12. `Dxtr`/`dxtr` is reserved for the package/repository identity (`dxtr_card_scan`). Dart classes, typedefs, fields, variables, helpers, test names, and example UI labels use neutral domain names without a `Dxtr` prefix.
-13. v0.2 card detection remains classical CV and deterministic. Do not add ML/AI detection unless classical CV proves insufficient with evidence.
+8. File/image picking belongs to the host/example. Core accepts image data/paths and normalized geometry but does not depend on an image picker.
+9. Capture orientation policy must not lock the host application's OS orientation.
+10. Camera and Gallery visuals inherit host theming through `CardScanTheme` plus host `ThemeData` / `ColorScheme`.
+11. `Dxtr`/`dxtr` is reserved for package/repository identity. Public Dart domain types remain neutral.
+12. v0.2 card detection remains classical CV and deterministic. Do not add ML/AI detection unless classical CV proves insufficient with evidence.
+13. Perspective geometry is evaluated only after orientation normalization and optional raw ROI crop. A supplied `perspective_quad` is normalized to that current working image.
 
 ## Current branch / PR
 
-Branch: `agent/v0.2-quad-detection`
+Branch: `agent/v0.2-perspective-warp`
 PR: pending
 
 ## v0.1 status
@@ -34,129 +34,97 @@ PR: pending
 **Complete and merged. Physical-device validation passed on 2026-08-22.**
 
 Validated on physical device:
-- Home -> Camera / Gallery navigation
-- Camera Back in portrait and both landscape orientations
-- Back remains outside the scan frame
-- Flash off / auto / on
-- Torch toggle and restore behavior
-- pinch-only zoom and zoom badge
-- shutter/control theming
-- settled portrait and landscape camera geometry
-- configurable frame alignment/padding behavior
-- portrait-only / landscape-only capture-policy behavior
+- Camera / Gallery navigation
+- portrait and both landscape camera control layouts
+- Back outside scan frame
+- flash off / auto / on
+- torch
+- pinch-only zoom + badge
+- capture-frame alignment/padding
+- portrait-only / landscape-only capture policy
 - Gallery picker -> crop -> Use crop
-- Gallery crop on real images
-- custom `CardScanTheme` across Camera frame, Camera controls, and Gallery crop
+- custom `CardScanTheme`
 
-## v0.2 PR1 status — Rust processor foundation
+## v0.2 PR1 — Rust processor foundation
 
 **Merged as PR #3.**
 
 Implemented:
-- Rust crate producing `cdylib`, `staticlib`, and `rlib`
+- Rust `cdylib` / `staticlib` / `rlib`
 - JPEG/PNG decode
 - explicit clockwise quarter-turn orientation normalization
-- normalized raw-image ROI quantized into integer half-open pixel bounds before rotation
-- exact integer ROI rotation to avoid floating-point pixel-boundary drift
+- pixel-stable normalized ROI mapping and exact integer rotation
 - crop
 - optional grayscale
-- optional max-dimension resize without upscaling
-- JPEG/PNG encode
-- stable C ABI with JSON options
+- no-upscale max-dimension resize
+- JPEG/PNG output
+- stable C ABI using UTF-8 JSON options
 - explicit result ownership/free contract
-- panic containment at FFI boundary
+- panic containment
 - Rust format/clippy/test CI
 
-## v0.2 PR2 status — quadrilateral detection
+## v0.2 PR2 — deterministic quadrilateral detection
 
-**In progress on `agent/v0.2-quad-detection`.**
+**Merged as PR #4.**
 
-Current detector stages:
+Implemented:
 1. grayscale working copy
 2. deterministic 3x3 box blur
 3. Sobel gradient magnitude
-4. adaptive edge threshold from gradient mean + standard deviation
-5. 8-connected edge components
-6. convex hull extraction
-7. four-corner quadrilateral approximation from hull extrema
-8. candidate scoring
+4. adaptive threshold
+5. zero-gradient/solid-image rejection
+6. 8-connected edge components
+7. convex hull extraction
+8. four-distinct-corner quad approximation that preserves 45-degree/diamond cases
+9. deterministic candidate scoring
 
 Candidate score components:
 - area coverage
 - rectangularity
-- expected aspect-ratio similarity, accepting portrait rotation
-- center/frame alignment
+- expected aspect-ratio similarity with portrait equivalence
+- center alignment
 - edge strength
 
-The Rust API currently exposes `detect_card_quad()` separately from `process_encoded()`. It returns normalized corners plus component scores and does not yet warp/crop using the detected quad. Keeping detection separate allows detector quality to be validated before perspective correction is introduced.
+`detect_card_quad()` remains usable independently and returns normalized clockwise corners plus score breakdown.
 
-No new native CV dependency is introduced in PR2; the implementation uses the existing `image` crate plus Rust code.
+## v0.2 PR3 — perspective warp / OCR enhancement
 
-## Capture frame geometry contract
+**In progress on `agent/v0.2-perspective-warp`.**
 
-`CaptureFrame` supports:
-- `aspectRatio`
-- `widthFactor`
-- `maxHeightFactor`
-- `fixedSize`
-- `normalizedRect`
-- `alignment`
-- `alignmentPadding`
+Current implementation:
+- `warp_quad()` performs deterministic projective mapping from a normalized clockwise quad into a rectified image.
+- Warp sampling is inverse-mapped from destination to source with bilinear interpolation.
+- Quad start index is not assumed to be top-left. The warp canonicalizes the cyclic corner order so the longer opposite-edge pair becomes output width, preserving landscape card orientation for portrait/diamond input.
+- Natural output dimensions are derived from averaged opposite-edge lengths.
+- optional `warp_long_edge` scales the rectified output while preserving aspect ratio.
+- `process_encoded()` can use either `auto_detect: true` or a supplied `perspective_quad`; they are mutually exclusive.
+- `perspective_quad` coordinates are normalized to the working image after orientation normalization and optional ROI crop.
+- `enhance_for_ocr` is opt-in and performs grayscale conversion plus conservative 2nd/98th percentile contrast stretching.
+- perspective warp occurs before OCR enhancement and before the existing max-dimension resize/output encoding stages.
+- the C ABI function signatures remain unchanged; JSON options evolve backward-compatibly.
 
-`alignment == null` keeps centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the usable viewport before alignment and auto-size calculations.
+New `ProcessorOptions` fields:
+- `auto_detect`
+- `perspective_quad`
+- `warp_long_edge`
+- `enhance_for_ocr`
 
-## Capture orientation contract
-
-`CardCaptureView` supports:
-
-```dart
-CaptureOrientationPolicy.any
-CaptureOrientationPolicy.portraitOnly
-CaptureOrientationPolicy.landscapeOnly
-```
-
-When orientation is rejected, preview remains visible, capture frame is hidden, capture is disabled, and optional host guidance may be shown. The package never forces host OS orientation.
-
-## Camera vs Gallery frame constraints
-
-Camera uses `CaptureFrame` with explicit ratio/size/alignment options. Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. Gallery should remain capable of freeform cropping while adding an optional ratio/preset constraint later.
-
-## Theme contract
-
-Package-specific visuals use `CardScanTheme`, a Flutter `ThemeExtension`. Resolution order is explicit per-widget override, nearest `CardScanTheme`, then package defaults.
-
-## Camera controls
-
-Portrait:
-- Back top-left
-- Flash immediately to the right of Back
-- Zoom top-center
-- Torch top-right
-- Shutter bottom-center
-- pinch-only zoom
-
-Landscape:
-- `landscapeLeft`: shutter right
-- `landscapeRight`: shutter left
-- Back at the top of the same edge as shutter, outside the central scan frame
-- opposite edge: Flash top / Zoom center / Torch bottom
-
-## Example home + Gallery crop flow
-
-Example Home has Camera and Gallery routes. `image_picker` exists only in the example. Gallery returns `ImageCropSelection(imagePath, NormalizedRect)`; Rust owns actual raster processing.
-
-## Naming rule
-
-`Dxtr`/`dxtr` remains reserved for package/repository identity. Public Dart domain types remain neutral.
+Local validation targets now include `make rust-format`, `make rust-format-check`, `make rust-clippy`, `make rust-test`, and `make rust-ci`.
 
 ## Remaining v0.2 order
 
-After PR2 detector validation:
-1. perspective warp using detected quad
-2. detected-quad crop
-3. optional OCR-oriented enhancement
-4. optional resize/output integration
-5. Dart FFI wrapper and native packaging after the Rust processing contract is stable
+After PR3 validation:
+1. Dart FFI wrapper
+2. Android/iOS/macOS native-library packaging
+3. Flutter processor API and error mapping
+4. example integration for Camera ROI / Gallery crop / auto-detect
+5. physical-device validation
+
+## Geometry contracts
+
+Camera frame geometry uses normalized source-image coordinates after `BoxFit.cover` mapping plus explicit capture transform. Gallery crop uses source-relative normalized coordinates. Rust ROI is quantized once in raw pixel space before orientation rotation to avoid floating-point boundary drift.
+
+The detector emits a cyclic clockwise quad. Consumers must not assume the first point is always top-left; PR3 warp handles the cyclic start internally.
 
 ## Documentation policy
 
