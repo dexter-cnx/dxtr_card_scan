@@ -22,15 +22,16 @@ Repository: `dexter-cnx/dxtr_card_scan`
 10. Capture orientation policy must not lock the host application's OS orientation.
 11. Camera and Gallery visuals inherit host theming. Package-specific visual tokens use `CardScanTheme`; standard Material controls still inherit host `ThemeData` / `ColorScheme`.
 12. `Dxtr`/`dxtr` is reserved for the package/repository identity (`dxtr_card_scan`). Dart classes, typedefs, fields, variables, helpers, test names, and example UI labels use neutral domain names without a `Dxtr` prefix.
+13. v0.2 card detection remains classical CV and deterministic. Do not add ML/AI detection unless classical CV proves insufficient with evidence.
 
 ## Current branch / PR
 
-Branch: `agent/v0.1-capture-foundation`
-PR: #2
+Branch: `agent/v0.2-quad-detection`
+PR: pending
 
 ## v0.1 status
 
-**Implementation complete. Automated validation passed. Physical-device validation passed on 2026-08-22.**
+**Complete and merged. Physical-device validation passed on 2026-08-22.**
 
 Validated on physical device:
 - Home -> Camera / Gallery navigation
@@ -47,7 +48,49 @@ Validated on physical device:
 - Gallery crop on real images
 - custom `CardScanTheme` across Camera frame, Camera controls, and Gallery crop
 
-Latest pre-validation code CI passed in run `32558024492`. Final documentation-only sync must also remain green before merge.
+## v0.2 PR1 status — Rust processor foundation
+
+**Merged as PR #3.**
+
+Implemented:
+- Rust crate producing `cdylib`, `staticlib`, and `rlib`
+- JPEG/PNG decode
+- explicit clockwise quarter-turn orientation normalization
+- normalized raw-image ROI quantized into integer half-open pixel bounds before rotation
+- exact integer ROI rotation to avoid floating-point pixel-boundary drift
+- crop
+- optional grayscale
+- optional max-dimension resize without upscaling
+- JPEG/PNG encode
+- stable C ABI with JSON options
+- explicit result ownership/free contract
+- panic containment at FFI boundary
+- Rust format/clippy/test CI
+
+## v0.2 PR2 status — quadrilateral detection
+
+**In progress on `agent/v0.2-quad-detection`.**
+
+Current detector stages:
+1. grayscale working copy
+2. deterministic 3x3 box blur
+3. Sobel gradient magnitude
+4. adaptive edge threshold from gradient mean + standard deviation
+5. 8-connected edge components
+6. convex hull extraction
+7. four-corner quadrilateral approximation from hull extrema
+8. candidate scoring
+
+Candidate score components:
+- area coverage
+- rectangularity
+- expected aspect-ratio similarity, accepting portrait rotation
+- center/frame alignment
+- edge strength
+
+The Rust API currently exposes `detect_card_quad()` separately from `process_encoded()`. It returns normalized corners plus component scores and does not yet warp/crop using the detected quad. Keeping detection separate allows detector quality to be validated before perspective correction is introduced.
+
+No new native CV dependency is introduced in PR2; the implementation uses the existing `image` crate plus Rust code.
 
 ## Capture frame geometry contract
 
@@ -60,9 +103,7 @@ Latest pre-validation code CI passed in run `32558024492`. Final documentation-o
 - `alignment`
 - `alignmentPadding`
 
-`alignment == null` keeps centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the usable viewport before alignment and auto-size calculations. This supports top/bottom/side placement with configurable pitch from the edge.
-
-The example uses centered `CaptureFrame.id1(widthFactor: .88, maxHeightFactor: .82)` unless a host opts into another alignment.
+`alignment == null` keeps centered behavior. `alignmentPadding` defaults to `EdgeInsets.zero` and deflates the usable viewport before alignment and auto-size calculations.
 
 ## Capture orientation contract
 
@@ -74,51 +115,15 @@ CaptureOrientationPolicy.portraitOnly
 CaptureOrientationPolicy.landscapeOnly
 ```
 
-When orientation is rejected:
-- preview remains visible;
-- capture frame is hidden;
-- controller capture is disabled;
-- optional `orientationMismatchBuilder` may show rotate-device guidance.
-
-The package never forces host OS orientation.
+When orientation is rejected, preview remains visible, capture frame is hidden, capture is disabled, and optional host guidance may be shown. The package never forces host OS orientation.
 
 ## Camera vs Gallery frame constraints
 
-Camera uses `CaptureFrame` with explicit ratio/size/alignment options. Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. Gallery should remain capable of freeform cropping while adding an optional ratio/preset constraint later so a host can request ID-1 or another document ratio.
-
-This Gallery ratio/preset item remains intentionally deferred and does not block v0.1 completion.
+Camera uses `CaptureFrame` with explicit ratio/size/alignment options. Gallery `ImageCropView` currently uses a normalized initial rectangle and freeform corner resizing. Gallery should remain capable of freeform cropping while adding an optional ratio/preset constraint later.
 
 ## Theme contract
 
-Package-specific visuals use `CardScanTheme`, a Flutter `ThemeExtension`:
-
-```dart
-ThemeData(
-  extensions: const [
-    CardScanTheme(
-      captureFrameStyle: CaptureFrameStyle(
-        borderColor: Colors.amber,
-        borderWidth: 3,
-      ),
-      imageCropStyle: ImageCropStyle(
-        borderColor: Colors.cyan,
-        handleColor: Colors.orange,
-      ),
-      cameraControlsStyle: CameraControlsStyle(
-        shutterSize: 92,
-        activeControlBackgroundColor: Colors.amber,
-      ),
-    ),
-  ],
-)
-```
-
-Resolution order for Camera frame and Gallery crop:
-1. explicit per-widget override;
-2. nearest `CardScanTheme` in `ThemeData.extensions`;
-3. package defaults.
-
-`CameraControlsStyle` covers shutter size/shape/colors/border, normal and active Back/Flash/Torch colors, and Zoom badge colors. Nullable colors fall back to host Material `ColorScheme`.
+Package-specific visuals use `CardScanTheme`, a Flutter `ThemeExtension`. Resolution order is explicit per-widget override, nearest `CardScanTheme`, then package defaults.
 
 ## Camera controls
 
@@ -138,58 +143,20 @@ Landscape:
 
 ## Example home + Gallery crop flow
 
-Example Home has:
-1. `Camera` -> full-screen secondary camera route.
-2. `Gallery` -> example-owned `image_picker`, then package `ImageCropView(imagePath: ...)`.
+Example Home has Camera and Gallery routes. `image_picker` exists only in the example. Gallery returns `ImageCropSelection(imagePath, NormalizedRect)`; Rust owns actual raster processing.
 
-`image_picker` exists only in `example/pubspec.yaml`.
+## Naming rule
 
-Gallery crop:
-- accepts host-provided image path;
-- loads source dimensions;
-- uses `BoxFit.contain` source-image geometry;
-- crop rectangle moves/resizes from four corners;
-- returns `ImageCropSelection(imagePath, NormalizedRect)`;
-- actual raster crop/encode remains for v0.2 Rust processing.
+`Dxtr`/`dxtr` remains reserved for package/repository identity. Public Dart domain types remain neutral.
 
-## Naming cleanup completed
+## Remaining v0.2 order
 
-Public theme API is `CardScanTheme` in `lib/src/theme/card_scan_theme.dart`. The old `DxtrCardScanTheme` type/file and prefixed test file were removed rather than retained as deprecated aliases. `lib/dxtr_card_scan.dart` remains prefixed because it is the package barrel/import identity.
-
-## v0.1 completion / merge gate
-
-Completed:
-- package analyze/tests
-- alignment/padding tests
-- orientation-policy tests
-- theme resolution/interpolation tests
-- example analyze
-- Android/iOS host scaffold generation
-- Android debug APK build
-- physical-device Camera/Gallery validation
-
-Next action after final documentation CI is green:
-1. mark PR #2 Ready for review;
-2. merge PR #2;
-3. remove `agent/v0.1-capture-foundation` if no longer needed;
-4. start v0.2 on a new branch from `main`.
-
-## Next milestone: v0.2 Rust processor
-
-Planned order:
-1. orientation normalization
-2. expected-frame or manual-crop ROI
-3. grayscale working copy
-4. blur/edge detection
-5. contours and quadrilateral approximation
-6. candidate scoring
-7. perspective warp
-8. crop
-9. optional OCR-oriented enhancement
-10. optional resize
-11. output encoding
-
-Do not introduce ML/AI detection in v0.2 unless classical CV proves insufficient with evidence.
+After PR2 detector validation:
+1. perspective warp using detected quad
+2. detected-quad crop
+3. optional OCR-oriented enhancement
+4. optional resize/output integration
+5. Dart FFI wrapper and native packaging after the Rust processing contract is stable
 
 ## Documentation policy
 
