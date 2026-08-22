@@ -20,9 +20,7 @@ class CardScanExample extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true).copyWith(
-        extensions: const [
-          DxtrCardScanTheme(),
-        ],
+        extensions: const [CardScanTheme()],
       ),
       home: ExampleHomePage(cameras: cameras),
     );
@@ -37,12 +35,14 @@ class ExampleHomePage extends StatelessWidget {
   Future<void> _openGallery(BuildContext context) async {
     final image = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (image == null || !context.mounted) return;
+
     final result = await Navigator.of(context).push<ImageCropSelection>(
       MaterialPageRoute(
         builder: (_) => GalleryCropPage(imagePath: image.path),
       ),
     );
     if (result == null || !context.mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Crop: ${result.normalizedRect}')),
     );
@@ -51,7 +51,7 @@ class ExampleHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dxtr Card Scan')),
+      appBar: AppBar(title: const Text('Card Scan Example')),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
@@ -207,6 +207,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
       setState(() => _error = StateError('No camera is available.'));
       return;
     }
+
     final back = widget.cameras.where(
       (camera) => camera.lensDirection == CameraLensDirection.back,
     );
@@ -216,6 +217,7 @@ class _CameraCapturePageState extends State<CameraCapturePage> {
       ResolutionPreset.max,
       enableAudio: false,
     );
+
     try {
       await controller.initialize();
       final minZoom = await controller.getMinZoomLevel();
@@ -370,6 +372,7 @@ class _CoverCameraPreview extends StatelessWidget {
         final isPortrait = viewport.height >= viewport.width;
         final displayedAspectRatio =
             isPortrait ? 1 / cameraAspectRatio : cameraAspectRatio;
+
         return ClipRect(
           child: FittedBox(
             fit: BoxFit.cover,
@@ -478,6 +481,7 @@ class _OrientationCameraControls extends StatelessWidget {
     final shutterOnRight = deviceOrientation == DeviceOrientation.landscapeLeft;
     final shutterHorizontal = shutterOnRight ? 1.0 : -1.0;
     final controlHorizontal = -shutterHorizontal;
+
     return SafeArea(
       child: Stack(
         children: [
@@ -541,7 +545,7 @@ class _OrientationCameraControls extends StatelessWidget {
 }
 
 CameraControlsStyle _cameraStyle(BuildContext context) =>
-    DxtrCardScanTheme.of(context).cameraControlsStyle;
+    CardScanTheme.of(context).cameraControlsStyle;
 
 class _ShutterButton extends StatelessWidget {
   const _ShutterButton({required this.captureController});
@@ -644,6 +648,7 @@ class _TorchButton extends StatelessWidget {
     final foreground = enabled
         ? style.activeControlForegroundColor ?? colors.onPrimary
         : style.controlForegroundColor ?? colors.onSurface;
+
     return IconButton.filled(
       tooltip: enabled ? 'Torch off' : 'Torch on',
       style: IconButton.styleFrom(
