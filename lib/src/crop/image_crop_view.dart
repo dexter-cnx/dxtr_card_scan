@@ -8,6 +8,43 @@ import '../theme/card_scan_theme.dart';
 import 'image_crop_selection.dart';
 import 'image_crop_style.dart';
 
+/// Normalizes a crop rectangle so resize gestures always have valid bounds.
+@visibleForTesting
+NormalizedRect normalizeCropSelection(
+  NormalizedRect value, {
+  double minimumFraction = 0.08,
+}) {
+  assert(minimumFraction > 0 && minimumFraction <= 1);
+
+  var left = value.left;
+  var top = value.top;
+  var right = value.right;
+  var bottom = value.bottom;
+
+  if (value.width < minimumFraction) {
+    final center = (left + right) / 2;
+    left = (center - minimumFraction / 2)
+        .clamp(0.0, 1.0 - minimumFraction)
+        .toDouble();
+    right = left + minimumFraction;
+  }
+
+  if (value.height < minimumFraction) {
+    final center = (top + bottom) / 2;
+    top = (center - minimumFraction / 2)
+        .clamp(0.0, 1.0 - minimumFraction)
+        .toDouble();
+    bottom = top + minimumFraction;
+  }
+
+  return NormalizedRect(
+    left: left,
+    top: top,
+    right: right,
+    bottom: bottom,
+  );
+}
+
 /// Lets a user move and resize a crop rectangle over an image file.
 ///
 /// File picking intentionally stays outside this package. The host supplies an
@@ -56,7 +93,10 @@ class _ImageCropViewState extends State<ImageCropView> {
   @override
   void initState() {
     super.initState();
-    _selection = widget.initialRect;
+    _selection = normalizeCropSelection(
+      widget.initialRect,
+      minimumFraction: _minimumFraction,
+    );
   }
 
   @override
@@ -68,8 +108,17 @@ class _ImageCropViewState extends State<ImageCropView> {
   @override
   void didUpdateWidget(ImageCropView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialRect != widget.initialRect) {
+      _selection = normalizeCropSelection(
+        widget.initialRect,
+        minimumFraction: _minimumFraction,
+      );
+    }
     if (oldWidget.imagePath != widget.imagePath) {
-      _selection = widget.initialRect;
+      _selection = normalizeCropSelection(
+        widget.initialRect,
+        minimumFraction: _minimumFraction,
+      );
       _resolveImage();
     }
   }
