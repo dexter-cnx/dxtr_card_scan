@@ -36,7 +36,7 @@ Stable C ABI:
 
 Input is encoded image bytes plus UTF-8 JSON options. Output/error memory remains Rust-owned until the result is freed.
 
-## 0.2 Dart FFI boundary
+## Dart FFI boundary
 
 ### `lib/src/processor/card_scan_processor_options.dart`
 Public DTOs mirror the Rust JSON contract without exposing Rust implementation types:
@@ -58,9 +58,9 @@ Library loading:
 `android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and uses the NDK compiler supplied by CMake as Cargo's linker. Cargo builds the Rust staticlib; CMake force-links it into `libdxtr_card_scan_processor.so` so exported C ABI symbols remain available to Dart FFI. No binary is committed.
 
 ### iOS / macOS
-The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory. The script phase declares the generated archive as an Xcode output. `OTHER_LDFLAGS -force_load` is applied to the plugin Pod target itself, so the same target that owns the Rust build phase consumes the generated archive before the host Runner links the plugin product.
+The podspecs add a before-compile Rust build phase. `tool/build_rust_darwin.sh` maps `PLATFORM_NAME`/`ARCHS` to Apple Rust targets, builds each active architecture, uses `lipo` when a universal library is required, and places the result under the pod build directory.
 
-This avoids Runner-level generated-file ordering failures such as `Build input file cannot be found ... libdxtr_card_scan_processor.a`.
+The script phase declares the generated archive as an Xcode output. `OTHER_LDFLAGS -force_load` is applied to the plugin Pod target itself, so the same target that owns the Rust build phase consumes the generated archive before the host Runner links the plugin product. This avoids Runner-level generated-file ordering failures.
 
 ## Integrated example structure
 
@@ -74,7 +74,7 @@ Dedicated files:
 
 ### Background work
 
-`background_scan_tasks.dart` uses `Isolate.run()` for two expensive operations:
+`background_scan_tasks.dart` uses `Isolate.run()` for:
 1. image decode + EXIF `bakeOrientation()` + normalized JPEG write
 2. synchronous Dart FFI -> Rust processor execution
 
@@ -93,7 +93,7 @@ Camera processing sequence:
 8. run auto-detect and perspective warp only inside the frame ROI
 9. apply OCR enhancement and render the processed bytes
 
-Physical Android re-test passed orientation, frame ROI/warp behavior, zoom/flash/torch controls, and processed preview. Physical iPhone 11 validation also passed Camera capture, native linkage, FFI processing, and output rendering.
+Physical Android validation passed orientation, frame ROI/warp behavior, zoom/flash/torch controls, and processed preview. Physical iPhone 11 validation also passed Camera capture, native linkage, FFI processing, and output rendering.
 
 ## Gallery flow
 
@@ -114,7 +114,7 @@ Physical validation passed this flow on Android, iPhone 11, and macOS. macOS spe
 
 ## Validation tooling
 
-`make install-hooks` installs the tracked pre-push guard. `make ci` covers Flutter gates plus Rust format, Clippy, and tests. PR #7 builds the default Android example as an arm64 Gradle -> CMake -> Cargo -> APK integration gate.
+`make install-hooks` installs the tracked pre-push guard. `make ci` covers Flutter gates plus Rust format, Clippy, and tests. PR #7 built the default Android example as an arm64 Gradle -> CMake -> Cargo -> APK integration gate.
 
 Generated build state such as `android/.cxx/`, generated example platform hosts, and `rust/target/` is ignored. `rust/Cargo.lock` remains committed for reproducible embedded native builds.
 
@@ -122,9 +122,10 @@ Generated build state such as `android/.cxx/`, generated example platform hosts,
 
 `Dxtr`/`dxtr` belongs only to package/repository identity. Public Dart domain classes remain neutral.
 
-## Validation status
+## v0.2 validation status
 
-- v0.1 physical-device validation passed 2026-08-22.
+v0.2 is complete.
+
 - PR #3 Rust foundation merged.
 - PR #4 deterministic quad detection merged.
 - PR #5 perspective warp/OCR enhancement merged.
@@ -132,4 +133,8 @@ Generated build state such as `android/.cxx/`, generated example platform hosts,
 - PR #7 Android Camera + Gallery physical validation passed.
 - PR #7 iPhone 11 Camera + Gallery physical validation passed.
 - PR #7 macOS Gallery/native-linkage validation passed.
-- Remaining v0.2 gate: final CI/review, merge PR #7, record merge SHA, close milestone.
+- CI run `32569564457` passed.
+- Review threads were resolved.
+- PR #7 squash-merged on 2026-08-22 as `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5`.
+
+Next implementation milestone: **v0.3 Quality analysis**.
