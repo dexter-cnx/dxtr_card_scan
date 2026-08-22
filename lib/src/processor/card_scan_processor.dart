@@ -61,7 +61,7 @@ class CardScanProcessor {
     CardScanProcessorOptions options = const CardScanProcessorOptions(),
   }) {
     if (input.isEmpty) {
-      throw const ArgumentError('input image must not be empty');
+      throw ArgumentError('input image must not be empty');
     }
 
     final optionsBytes = Uint8List.fromList(utf8.encode(options.toJsonString()));
