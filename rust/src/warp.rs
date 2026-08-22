@@ -1,6 +1,9 @@
 use image::{DynamicImage, GenericImageView, Rgba, RgbaImage};
 
-use crate::detection::{Point, Quad};
+use crate::{
+    detection::{Point, Quad},
+    model::MAX_WARP_LONG_EDGE,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WarpOptions {
@@ -16,13 +19,19 @@ impl Default for WarpOptions {
     }
 }
 
-pub fn warp_quad(image: &DynamicImage, quad: Quad, options: WarpOptions) -> Result<DynamicImage, String> {
+pub fn warp_quad(
+    image: &DynamicImage,
+    quad: Quad,
+    options: WarpOptions,
+) -> Result<DynamicImage, String> {
     let (source_width, source_height) = image.dimensions();
     if source_width < 2 || source_height < 2 {
         return Err("source image is too small for perspective warp".to_owned());
     }
 
-    let mut corners = quad.corners.map(|point| normalized_to_pixel(point, source_width, source_height));
+    let mut corners = quad
+        .corners
+        .map(|point| normalized_to_pixel(point, source_width, source_height));
     validate_corners(&corners, source_width, source_height)?;
     corners = orient_long_edge_first(corners);
 
@@ -36,11 +45,8 @@ pub fn warp_quad(image: &DynamicImage, quad: Quad, options: WarpOptions) -> Resu
         return Err("quadrilateral is too small for perspective warp".to_owned());
     }
 
-    let (output_width, output_height) = output_dimensions(
-        natural_width,
-        natural_height,
-        options.output_long_edge,
-    )?;
+    let (output_width, output_height) =
+        output_dimensions(natural_width, natural_height, options.output_long_edge)?;
     let transform = ProjectiveMap::from_unit_square(corners)?;
     let source = image.to_rgba8();
     let mut output = RgbaImage::new(output_width, output_height);
@@ -99,12 +105,18 @@ fn orient_long_edge_first(mut corners: [PixelPoint; 4]) -> [PixelPoint; 4] {
     corners
 }
 
-fn output_dimensions(width: u32, height: u32, long_edge: Option<u32>) -> Result<(u32, u32), String> {
+fn output_dimensions(
+    width: u32,
+    height: u32,
+    long_edge: Option<u32>,
+) -> Result<(u32, u32), String> {
     let Some(long_edge) = long_edge else {
         return Ok((width, height));
     };
-    if long_edge < 2 {
-        return Err("output_long_edge must be at least 2".to_owned());
+    if !(2..=MAX_WARP_LONG_EDGE).contains(&long_edge) {
+        return Err(format!(
+            "output_long_edge must be in 2..={MAX_WARP_LONG_EDGE}"
+        ));
     }
     let current_long = width.max(height) as f64;
     let scale = long_edge as f64 / current_long;
@@ -214,7 +226,9 @@ fn bilinear_sample(image: &RgbaImage, x: f64, y: f64) -> Rgba<u8> {
     for channel in 0..4 {
         let top = p00[channel] as f64 * (1.0 - tx) + p10[channel] as f64 * tx;
         let bottom = p01[channel] as f64 * (1.0 - tx) + p11[channel] as f64 * tx;
-        channels[channel] = (top * (1.0 - ty) + bottom * ty).round().clamp(0.0, 255.0) as u8;
+        channels[channel] = (top * (1.0 - ty) + bottom * ty)
+            .round()
+            .clamp(0.0, 255.0) as u8;
     }
     Rgba(channels)
 }
@@ -289,6 +303,12 @@ mod tests {
         .unwrap();
         assert_eq!(result.width(), 200);
         assert!(result.height() > 90 && result.height() < 110);
+    }
+
+    #[test]
+    fn rejects_oversized_output_long_edge() {
+        let error = output_dimensions(100, 60, Some(MAX_WARP_LONG_EDGE + 1)).unwrap_err();
+        assert!(error.contains("output_long_edge"));
     }
 
     #[test]
