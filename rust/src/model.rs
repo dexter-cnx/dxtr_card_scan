@@ -2,6 +2,8 @@ use serde::Deserialize;
 
 use crate::detection::{Point, Quad};
 
+pub const MAX_WARP_LONG_EDGE: u32 = 4096;
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct NormalizedRect {
     pub left: f32,
@@ -81,8 +83,12 @@ impl ProcessorOptions {
         if let Some(quad) = self.perspective_quad {
             validate_quad(quad)?;
         }
-        if self.warp_long_edge == Some(0) || self.warp_long_edge == Some(1) {
-            return Err("warp_long_edge must be at least 2 when provided".to_owned());
+        if let Some(long_edge) = self.warp_long_edge {
+            if !(2..=MAX_WARP_LONG_EDGE).contains(&long_edge) {
+                return Err(format!(
+                    "warp_long_edge must be in 2..={MAX_WARP_LONG_EDGE} when provided"
+                ));
+            }
         }
         if self.max_dimension == Some(0) {
             return Err("max_dimension must be greater than zero when provided".to_owned());
