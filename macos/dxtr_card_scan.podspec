@@ -16,7 +16,7 @@ Deterministic Rust preprocessing boundary used by the dxtr_card_scan Flutter pac
   s.script_phase = {
     :name => 'Build dxtr_card_scan Rust processor',
     :execution_position => :before_compile,
-    :script => '"${PODS_TARGET_SRCROOT}/../tool/build_rust_darwin.sh" "${PODS_TARGET_SRCROOT}/../rust/Cargo.toml" "${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a" "${PODS_TARGET_SRCROOT}/build/rust-target"'
+    :script => 'bash "${PODS_TARGET_SRCROOT}/../tool/build_rust_darwin.sh" "${PODS_TARGET_SRCROOT}/../rust/Cargo.toml" "${PODS_TARGET_SRCROOT}/build/${PLATFORM_NAME}/libdxtr_card_scan_processor.a" "${PODS_TARGET_SRCROOT}/build/rust-target"'
   }
 
   s.pod_target_xcconfig = {
