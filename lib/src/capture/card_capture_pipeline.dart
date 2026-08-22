@@ -67,6 +67,7 @@ class CardCapturePipeline {
       final bytes = processor.processFile(
         normalized.path,
         options: CardScanProcessorOptions(
+          quarterTurnsClockwise: options.quarterTurnsClockwise,
           roi: sourceRoi,
           autoDetect: options.autoDetect,
           perspectiveQuad: options.perspectiveQuad,
