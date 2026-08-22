@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -27,10 +30,26 @@ class _GalleryScanPageState extends State<GalleryScanPage> {
     });
   }
 
+  Future<String?> _pickImagePath() async {
+    if (Platform.isMacOS) {
+      const imageTypes = XTypeGroup(
+        label: 'Images',
+        extensions: <String>['jpg', 'jpeg', 'png', 'webp'],
+      );
+      final picked = await openFile(
+        acceptedTypeGroups: const <XTypeGroup>[imageTypes],
+      );
+      return picked?.path;
+    }
+
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    return picked?.path;
+  }
+
   Future<void> _pick() async {
     if (_busy) return;
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null || !mounted) return;
+    final pickedPath = await _pickImagePath();
+    if (pickedPath == null || !mounted) return;
 
     setState(() {
       _busy = true;
@@ -39,7 +58,7 @@ class _GalleryScanPageState extends State<GalleryScanPage> {
     });
 
     try {
-      final prepared = await prepareImageInBackground(picked.path);
+      final prepared = await prepareImageInBackground(pickedPath);
       if (!mounted) return;
       setState(() {
         _selection = ImageCropSelection(
