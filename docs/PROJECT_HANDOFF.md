@@ -23,7 +23,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 ## Current branch / PR
 
 Branch: `agent/v0.2-example-native-flow`
-PR: pending
+PR: #7
 
 ## Completed
 
@@ -59,12 +59,14 @@ Merged as PR #6. Includes:
 
 ## v0.2 PR5 — end-to-end native example validation
 
-**In progress on `agent/v0.2-example-native-flow`.**
+**In progress on `agent/v0.2-example-native-flow` as PR #7.**
 
 Current implementation:
 - dedicated `example/lib/native_processor_demo.dart` entrypoint
 - Camera path: capture -> `CardScanProcessor.processFile()` -> auto-detect -> perspective warp -> OCR enhancement -> processed preview
-- Gallery path: host image picker -> `ImageCropView` -> normalized ROI -> native processing -> processed preview
+- Camera validation page mirrors production lifecycle handling with `WidgetsBindingObserver`: release on inactive/paused/detached/hidden and recreate on resume
+- Gallery path: host image picker -> EXIF orientation baked into a temporary JPEG -> `ImageCropView` -> normalized ROI -> native processing -> processed preview
+- baking EXIF orientation before both display and processing ensures Gallery ROI coordinates refer to the same physical pixel layout, including mirrored EXIF orientations
 - native errors are surfaced directly in the example for device validation
 - CI builds the native validation entrypoint for Android arm64 so Dart FFI usage and Rust plugin packaging are both retained in the APK
 
@@ -72,7 +74,7 @@ Current implementation:
 
 1. CI/analyze/build cleanup for the native validation entrypoint.
 2. Validate iOS and macOS native linkage on Apple toolchains.
-3. Physical-device test of Camera auto-detect/warp and Gallery ROI processing.
+3. Physical-device test of Camera auto-detect/warp and Gallery ROI processing, including a portrait EXIF-oriented Gallery JPEG.
 4. Record validation evidence and close v0.2.
 
 ## Native build policy
