@@ -12,4 +12,4 @@ export 'src/geometry/captured_image_transform.dart';
 export 'src/geometry/normalized_rect.dart';
 export 'src/geometry/preview_geometry.dart';
 export 'src/theme/camera_controls_style.dart';
-export 'src/theme/dxtr_card_scan_theme.dart';
+export 'src/theme/card_scan_theme.dart';
