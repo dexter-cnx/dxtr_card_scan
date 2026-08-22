@@ -1,4 +1,4 @@
-.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android rust-format rust-format-check rust-clippy rust-test rust-ci ci
+.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android rust-format rust-format-check rust-clippy rust-test rust-ci install-hooks pre-push ci
 
 get:
 	flutter pub get
@@ -40,5 +40,11 @@ rust-test:
 	cargo test --manifest-path rust/Cargo.toml
 
 rust-ci: rust-format-check rust-clippy rust-test
+
+install-hooks:
+	bash tool/install_git_hooks.sh
+
+pre-push:
+	bash tool/pre_push.sh
 
 ci: get format-check analyze test example-analyze rust-ci
