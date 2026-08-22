@@ -6,126 +6,74 @@ Last updated: 2026-08-22
 
 Repository: `dexter-cnx/dxtr_card_scan`
 
-`dxtr_card_scan` is an OCR-engine-agnostic Flutter/Dart SDK for capturing cards/documents and preparing images for OCR. Flutter owns camera/UI/geometry. Rust owns deterministic preprocessing.
+`dxtr_card_scan` is an OCR-engine-agnostic Flutter/Dart SDK for card/document capture plus deterministic Rust preprocessing. Flutter owns camera/UI/preview geometry. Rust owns raster processing.
 
-## Non-negotiable architecture decisions
+## Architecture rules
 
-1. Do not embed an OCR engine in the core package.
-2. Do not let Rust own camera lifecycle or capture UI.
-3. Do not crop captured images using raw Flutter preview coordinates.
-4. Normalize preview/frame geometry before crossing the processing boundary.
-5. Camera orientation/mirroring must be explicit.
-6. Grayscale and hard thresholding are optional and should not be aggressive defaults.
-7. Keep future `CardTemplate` and named OCR regions compatible with normalized coordinates.
-8. File/image picking belongs to the host/example. Core accepts image data/paths and normalized geometry but does not depend on an image picker.
-9. Capture orientation policy must not lock the host application's OS orientation.
-10. Camera and Gallery visuals inherit host theming through `CardScanTheme` plus host `ThemeData` / `ColorScheme`.
-11. `Dxtr`/`dxtr` is reserved for package/repository identity. Public Dart domain types remain neutral.
-12. v0.2 card detection remains classical CV and deterministic. Do not add ML/AI detection unless classical CV proves insufficient with evidence.
-13. Perspective geometry is evaluated only after orientation normalization and optional raw ROI crop. A supplied `perspective_quad` is normalized to that current working image.
+1. Core does not embed an OCR engine.
+2. Rust does not own camera lifecycle/UI.
+3. Preview/frame geometry is normalized before processing.
+4. Rotation/mirroring is explicit.
+5. File picking stays in the host/example.
+6. Grayscale/OCR enhancement remains opt-in.
+7. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
+8. v0.2 detection remains deterministic classical CV.
+9. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
 
 ## Current branch / PR
 
-Branch: `agent/v0.2-perspective-warp`
+Branch: `agent/v0.2-dart-ffi-packaging`
 PR: pending
 
-## v0.1 status
+## Completed
 
-**Complete and merged. Physical-device validation passed on 2026-08-22.**
+### v0.1 capture foundation
 
-Validated on physical device:
-- Camera / Gallery navigation
-- portrait and both landscape camera control layouts
-- Back outside scan frame
-- flash off / auto / on
-- torch
-- pinch-only zoom + badge
-- capture-frame alignment/padding
-- portrait-only / landscape-only capture policy
-- Gallery picker -> crop -> Use crop
-- custom `CardScanTheme`
+Merged and physical-device validated on 2026-08-22. Camera/Gallery navigation, portrait/landscape controls, flash, torch, pinch zoom, capture-frame alignment/padding, orientation policies, Gallery crop, and `CardScanTheme` passed on device.
 
-## v0.2 PR1 — Rust processor foundation
+### v0.2 PR1 — Rust processor foundation
 
-**Merged as PR #3.**
+Merged as PR #3. Includes JPEG/PNG decode, orientation normalization, pixel-stable ROI mapping/crop, optional grayscale/resize, encoding, stable C ABI, result ownership/free contract, and panic containment.
 
-Implemented:
-- Rust `cdylib` / `staticlib` / `rlib`
-- JPEG/PNG decode
-- explicit clockwise quarter-turn orientation normalization
-- pixel-stable normalized ROI mapping and exact integer rotation
-- crop
-- optional grayscale
-- no-upscale max-dimension resize
-- JPEG/PNG output
-- stable C ABI using UTF-8 JSON options
-- explicit result ownership/free contract
-- panic containment
-- Rust format/clippy/test CI
+### v0.2 PR2 — quadrilateral detection
 
-## v0.2 PR2 — deterministic quadrilateral detection
+Merged as PR #4. Includes grayscale/blur/Sobel/adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, deterministic scoring, and 45-degree regression coverage.
 
-**Merged as PR #4.**
+### v0.2 PR3 — perspective warp / OCR enhancement
 
-Implemented:
-1. grayscale working copy
-2. deterministic 3x3 box blur
-3. Sobel gradient magnitude
-4. adaptive threshold
-5. zero-gradient/solid-image rejection
-6. 8-connected edge components
-7. convex hull extraction
-8. four-distinct-corner quad approximation that preserves 45-degree/diamond cases
-9. deterministic candidate scoring
+Merged as PR #5. Includes deterministic projective warp, bilinear sampling, cyclic-quad handling, long-edge-first output, bounded `warp_long_edge` (`2..=4096`), auto-detect/manual quad integration, conservative percentile OCR enhancement, and regression coverage for tiny images/allocation bounds.
 
-Candidate score components:
-- area coverage
-- rectangularity
-- expected aspect-ratio similarity with portrait equivalence
-- center alignment
-- edge strength
+## v0.2 PR4 — Dart FFI + native packaging
 
-`detect_card_quad()` remains usable independently and returns normalized clockwise corners plus score breakdown.
-
-## v0.2 PR3 — perspective warp / OCR enhancement
-
-**In progress on `agent/v0.2-perspective-warp`.**
+**In progress on `agent/v0.2-dart-ffi-packaging`.**
 
 Current implementation:
-- `warp_quad()` performs deterministic projective mapping from a normalized clockwise quad into a rectified image.
-- Warp sampling is inverse-mapped from destination to source with bilinear interpolation.
-- Quad start index is not assumed to be top-left. The warp canonicalizes the cyclic corner order so the longer opposite-edge pair becomes output width, preserving landscape card orientation for portrait/diamond input.
-- Natural output dimensions are derived from averaged opposite-edge lengths.
-- optional `warp_long_edge` scales the rectified output while preserving aspect ratio.
-- `process_encoded()` can use either `auto_detect: true` or a supplied `perspective_quad`; they are mutually exclusive.
-- `perspective_quad` coordinates are normalized to the working image after orientation normalization and optional ROI crop.
-- `enhance_for_ocr` is opt-in and performs grayscale conversion plus conservative 2nd/98th percentile contrast stretching.
-- perspective warp occurs before OCR enhancement and before the existing max-dimension resize/output encoding stages.
-- the C ABI function signatures remain unchanged; JSON options evolve backward-compatibly.
+- public `CardScanProcessor`
+- `processBytes()` and `processFile()`
+- Rust status/error mapping via `CardScanProcessorException`
+- UTF-8 JSON option transport
+- `CardScanProcessorOptions`, `ProcessorQuad`, `ProcessorPoint`, `ProcessorOutputFormat`
+- Android loader uses `libdxtr_card_scan_processor.so`
+- iOS/macOS loader uses `DynamicLibrary.process()`
+- Flutter plugin metadata uses `ffiPlugin: true` for Android/iOS/macOS
+- Android CMake maps `ANDROID_ABI` to Rust targets and links the Rust staticlib into the packaged shared library
+- iOS/macOS CocoaPods build phase compiles Rust for active `PLATFORM_NAME` / `ARCHS`, creates a universal staticlib when necessary, and force-loads it so FFI symbols survive dead stripping
+- processor option JSON contract unit tests
 
-New `ProcessorOptions` fields:
-- `auto_detect`
-- `perspective_quad`
-- `warp_long_edge`
-- `enhance_for_ocr`
+## Remaining before v0.2 physical validation
 
-Local validation targets now include `make rust-format`, `make rust-format-check`, `make rust-clippy`, `make rust-test`, and `make rust-ci`.
+1. CI/analyze/unit-test cleanup for the new Dart/native packaging surface.
+2. Android example build must prove Gradle -> CMake -> Rust -> APK packaging.
+3. Add/validate example processor invocation for Camera/Gallery paths if automated gates are stable.
+4. Validate iOS and macOS native linkage on Apple toolchains.
+5. Physical-device test of decode -> ROI/detect -> warp -> enhancement -> output.
 
-## Remaining v0.2 order
+## Native build policy
 
-After PR3 validation:
-1. Dart FFI wrapper
-2. Android/iOS/macOS native-library packaging
-3. Flutter processor API and error mapping
-4. example integration for Camera ROI / Gallery crop / auto-detect
-5. physical-device validation
+The package keeps Flutter >=3.22 compatibility, so PR4 uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
 
-## Geometry contracts
-
-Camera frame geometry uses normalized source-image coordinates after `BoxFit.cover` mapping plus explicit capture transform. Gallery crop uses source-relative normalized coordinates. Rust ROI is quantized once in raw pixel space before orientation rotation to avoid floating-point boundary drift.
-
-The detector emits a cyclic clockwise quad. Consumers must not assume the first point is always top-left; PR3 warp handles the cyclic start internally.
+`make install-hooks` installs the tracked pre-push guard. It runs Dart/Rust formatting and Rust validation locally before push.
 
 ## Documentation policy
 
-Update both `docs/CODE_WALKTHROUGH.md` and this handoff whenever a material PR changes architecture, public API, native processing, platform support, milestone status, or validation state.
+Keep `docs/PROJECT_HANDOFF.md`, `docs/CODE_WALKTHROUGH.md`, and `docs/ROADMAP.md` synchronized for material architecture/native-processing changes.
