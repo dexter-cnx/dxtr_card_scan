@@ -42,6 +42,16 @@ impl CardScanResult {
     }
 }
 
+/// Processes an encoded image and returns an owned result allocated by Rust.
+///
+/// # Safety
+///
+/// `input_ptr` must point to at least `input_len` readable bytes for the duration of this call.
+/// When `options_json_len` is greater than zero, `options_json_ptr` must point to at least
+/// `options_json_len` readable bytes containing UTF-8 JSON for the duration of this call.
+/// A null `options_json_ptr` is permitted only when `options_json_len` is zero.
+/// The returned pointer, when non-null, is owned by Rust and must be released exactly once with
+/// [`card_scan_result_free`]. Callers must not free or mutate `data_ptr` or `error_ptr` separately.
 #[no_mangle]
 pub unsafe extern "C" fn card_scan_process(
     input_ptr: *const u8,
@@ -80,6 +90,13 @@ pub unsafe extern "C" fn card_scan_process(
     execution.unwrap_or_else(|_| CardScanResult::error(STATUS_PANIC, "Rust processor panicked"))
 }
 
+/// Releases a result returned by [`card_scan_process`] and all buffers owned by that result.
+///
+/// # Safety
+///
+/// `result_ptr` must either be null or be a pointer returned by [`card_scan_process`] that has not
+/// already been passed to this function. After this call returns, `result_ptr` and all pointers
+/// stored inside the result are invalid and must not be read, written, or freed again.
 #[no_mangle]
 pub unsafe extern "C" fn card_scan_result_free(result_ptr: *mut CardScanResult) {
     if result_ptr.is_null() {
