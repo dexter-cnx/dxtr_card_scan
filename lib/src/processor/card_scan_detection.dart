@@ -38,16 +38,24 @@ class CardScanDetection {
       quad.bottomRight,
       quad.bottomLeft,
     ];
-    final minX = points.map((point) => point.x).reduce((a, b) => a < b ? a : b);
-    final maxX = points.map((point) => point.x).reduce((a, b) => a > b ? a : b);
-    final minY = points.map((point) => point.y).reduce((a, b) => a < b ? a : b);
-    final maxY = points.map((point) => point.y).reduce((a, b) => a > b ? a : b);
+    final minX = points
+        .map((point) => point.x)
+        .reduce((a, b) => a < b ? a : b);
+    final maxX = points
+        .map((point) => point.x)
+        .reduce((a, b) => a > b ? a : b);
+    final minY = points
+        .map((point) => point.y)
+        .reduce((a, b) => a < b ? a : b);
+    final maxY = points
+        .map((point) => point.y)
+        .reduce((a, b) => a > b ? a : b);
 
     return NormalizedRect(
-      left: (minX - padding).clamp(0.0, 1.0),
-      top: (minY - padding).clamp(0.0, 1.0),
-      right: (maxX + padding).clamp(0.0, 1.0),
-      bottom: (maxY + padding).clamp(0.0, 1.0),
+      left: (minX - padding).clamp(0.0, 1.0).toDouble(),
+      top: (minY - padding).clamp(0.0, 1.0).toDouble(),
+      right: (maxX + padding).clamp(0.0, 1.0).toDouble(),
+      bottom: (maxY + padding).clamp(0.0, 1.0).toDouble(),
     );
   }
 
