@@ -10,7 +10,7 @@ pub struct Point {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Quad {
-    /// Clockwise corners starting at top-left, normalized to [0, 1].
+    /// Clockwise corners starting at the top-most corner, normalized to [0, 1].
     pub corners: [Point; 4],
 }
 
@@ -61,9 +61,14 @@ pub fn detect_card_quad(
 
     let blurred = box_blur_3x3(&gray);
     let (gradient, threshold) = sobel_gradient(&blurred, options.edge_sigma);
+    let max_gradient = gradient.iter().copied().fold(0.0f32, f32::max);
+    if !threshold.is_finite() || threshold <= f32::EPSILON || max_gradient <= f32::EPSILON {
+        return None;
+    }
+
     let edges = gradient
         .iter()
-        .map(|value| *value >= threshold)
+        .map(|value| *value > 0.0 && *value >= threshold)
         .collect::<Vec<_>>();
 
     connected_edge_components(&edges, gray.width(), gray.height())
@@ -310,29 +315,63 @@ fn cross(origin: IPoint, a: IPoint, b: IPoint) -> i64 {
 }
 
 fn extreme_quad(hull: &[IPoint]) -> Option<[IPoint; 4]> {
-    let top_left = *hull.iter().min_by_key(|point| point.x + point.y)?;
-    let bottom_right = *hull.iter().max_by_key(|point| point.x + point.y)?;
-    let top_right = *hull.iter().max_by_key(|point| point.x - point.y)?;
-    let bottom_left = *hull.iter().min_by_key(|point| point.x - point.y)?;
-    let corners = [top_left, top_right, bottom_right, bottom_left];
-    if corners
-        .iter()
-        .enumerate()
-        .any(|(index, point)| corners.iter().skip(index + 1).any(|other| point == other))
-    {
+    if hull.len() < 4 {
         return None;
     }
+
+    let selectors = [
+        |point: IPoint| -(point.x + point.y),
+        |point: IPoint| point.x - point.y,
+        |point: IPoint| point.x + point.y,
+        |point: IPoint| point.y - point.x,
+    ];
+    let mut selected = Vec::with_capacity(4);
+    for selector in selectors {
+        let point = hull
+            .iter()
+            .copied()
+            .filter(|point| !selected.contains(point))
+            .max_by_key(|point| selector(*point))?;
+        selected.push(point);
+    }
+
+    order_quad_clockwise(selected.try_into().ok()?)
+}
+
+fn order_quad_clockwise(mut corners: [IPoint; 4]) -> Option<[IPoint; 4]> {
+    let center_x = corners.iter().map(|point| point.x as f64).sum::<f64>() / 4.0;
+    let center_y = corners.iter().map(|point| point.y as f64).sum::<f64>() / 4.0;
+    corners.sort_by(|a, b| {
+        let angle_a = (a.y as f64 - center_y).atan2(a.x as f64 - center_x);
+        let angle_b = (b.y as f64 - center_y).atan2(b.x as f64 - center_x);
+        angle_a.total_cmp(&angle_b)
+    });
+
+    if polygon_area_signed(&corners) < 0 {
+        corners.reverse();
+    }
+
+    let start = corners
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, point)| (point.y, point.x))?
+        .0;
+    corners.rotate_left(start);
     Some(corners)
 }
 
-fn polygon_area_i(corners: &[IPoint; 4]) -> f32 {
+fn polygon_area_signed(corners: &[IPoint; 4]) -> i64 {
     let mut sum = 0i64;
     for index in 0..4 {
         let a = corners[index];
         let b = corners[(index + 1) % 4];
         sum += a.x as i64 * b.y as i64 - b.x as i64 * a.y as i64;
     }
-    sum.unsigned_abs() as f32 * 0.5
+    sum
+}
+
+fn polygon_area_i(corners: &[IPoint; 4]) -> f32 {
+    polygon_area_signed(corners).unsigned_abs() as f32 * 0.5
 }
 
 fn distance(a: IPoint, b: IPoint) -> f32 {
@@ -383,9 +422,9 @@ mod tests {
         assert!(result.score.total > 0.60, "score={:?}", result.score);
         assert!(result.score.rectangularity > 0.90);
         assert!(result.score.aspect_ratio > 0.85);
-        let [tl, tr, br, bl] = result.quad.corners;
-        assert!(tl.x < tr.x && tl.y < bl.y);
-        assert!(br.x > bl.x && br.y > tr.y);
+        let [first, second, third, fourth] = result.quad.corners;
+        assert!(first.y <= second.y.max(fourth.y));
+        assert!(third.y >= second.y.min(fourth.y));
     }
 
     #[test]
@@ -399,6 +438,27 @@ mod tests {
             },
         );
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn rejects_solid_color_image() {
+        let image = DynamicImage::ImageLuma8(GrayImage::from_pixel(160, 100, Luma([128])));
+        assert!(detect_card_quad(&image, DetectionOptions::default()).is_none());
+    }
+
+    #[test]
+    fn preserves_four_distinct_corners_for_45_degree_rectangle() {
+        let hull = vec![
+            IPoint { x: 50, y: 10 },
+            IPoint { x: 90, y: 50 },
+            IPoint { x: 50, y: 90 },
+            IPoint { x: 10, y: 50 },
+        ];
+        let corners = extreme_quad(&hull).expect("diamond should produce a quad");
+        for index in 0..corners.len() {
+            assert!(!corners[index + 1..].contains(&corners[index]));
+        }
+        assert!(polygon_area_i(&corners) > 0.0);
     }
 
     #[test]
