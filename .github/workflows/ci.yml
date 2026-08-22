@@ -33,9 +33,9 @@ jobs:
         run: flutter analyze lib
       - name: Scaffold example host platforms
         run: bash tool/bootstrap_example_platforms.sh
-      - name: Build Android example
+      - name: Build Android example (arm64 native integration)
         working-directory: example
-        run: flutter build apk --debug
+        run: flutter build apk --debug --target-platform android-arm64
 
   rust:
     runs-on: ubuntu-latest
