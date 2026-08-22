@@ -32,7 +32,7 @@
 - [x] iOS build-time Rust packaging implementation
 - [x] macOS build-time Rust packaging implementation
 - [x] Android native packaging CI validation
-- [ ] iOS native linkage validation
+- [x] iOS native linkage validation
 - [ ] macOS native linkage validation
 - [x] dedicated Camera/Gallery native processor validation example
 - [ ] physical-device validation of native processor flow
