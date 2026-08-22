@@ -6,7 +6,6 @@ import '../capture/capture_confirmation_mode.dart';
 import '../capture/card_capture_image.dart';
 import '../capture/card_capture_pipeline.dart';
 import '../capture/card_capture_result.dart';
-import '../geometry/normalized_rect.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../ui/card_scan_labels.dart';
 import 'image_crop_selection.dart';
