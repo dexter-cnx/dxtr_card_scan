@@ -188,8 +188,8 @@ fn percentile_bounds(image: &GrayImage, low_fraction: f64, high_fraction: f64) -
         return (0, 255);
     }
 
-    let low_target = (total as f64 * low_fraction).floor() as u64;
-    let high_target = (total as f64 * high_fraction).ceil() as u64;
+    let low_target = ((total as f64 * low_fraction).floor() as u64).clamp(1, total);
+    let high_target = ((total as f64 * high_fraction).ceil() as u64).clamp(1, total);
     let mut cumulative = 0u64;
     let mut low = 0u8;
     let mut high = 255u8;
@@ -405,6 +405,13 @@ mod tests {
         let max = enhanced.pixels().map(|pixel| pixel.0[0]).max().unwrap();
         assert_eq!(min, 0);
         assert_eq!(max, 255);
+    }
+
+    #[test]
+    fn ocr_enhancement_keeps_uniform_single_pixel_unchanged() {
+        let image = GrayImage::from_pixel(1, 1, Luma([100]));
+        let enhanced = enhance_for_ocr(DynamicImage::ImageLuma8(image)).to_luma8();
+        assert_eq!(enhanced.get_pixel(0, 0).0[0], 100);
     }
 
     #[test]
