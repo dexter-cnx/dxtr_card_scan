@@ -28,7 +28,10 @@ Future<PreparedImage> prepareImageInBackground(String path) {
     }
 
     final normalized = image_lib.bakeOrientation(decoded);
-    final outputPath = '$path.normalized.jpg';
+    final tempDirectory = Directory.systemTemp.createTempSync(
+      'dxtr_card_scan_',
+    );
+    final outputPath = '${tempDirectory.path}/normalized.jpg';
     File(outputPath).writeAsBytesSync(
       image_lib.encodeJpg(normalized, quality: 96),
       flush: true,
