@@ -22,6 +22,16 @@ void main() {
     expect(rect.width / rect.height, closeTo(85.60 / 53.98, 0.0001));
   });
 
+  test('ID-1 frame rejects invalid sizing factors', () {
+    expect(() => CaptureFrame.id1(widthFactor: 0), throwsAssertionError);
+    expect(() => CaptureFrame.id1(widthFactor: 1.01), throwsAssertionError);
+    expect(() => CaptureFrame.id1(maxHeightFactor: 0), throwsAssertionError);
+    expect(
+      () => CaptureFrame.id1(maxHeightFactor: 1.01),
+      throwsAssertionError,
+    );
+  });
+
   test('frame may align to top with padding', () {
     const viewport = Size(1000, 800);
     const frame = CaptureFrame.id1(
