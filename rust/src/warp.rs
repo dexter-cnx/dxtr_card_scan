@@ -5,18 +5,10 @@ use crate::{
     model::MAX_WARP_LONG_EDGE,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct WarpOptions {
     /// Optional output long-edge size. When omitted, source edge lengths are preserved.
     pub output_long_edge: Option<u32>,
-}
-
-impl Default for WarpOptions {
-    fn default() -> Self {
-        Self {
-            output_long_edge: None,
-        }
-    }
 }
 
 pub fn warp_quad(
