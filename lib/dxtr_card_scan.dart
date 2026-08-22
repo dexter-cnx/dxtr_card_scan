@@ -18,6 +18,7 @@ export 'src/frame/capture_frame_style.dart';
 export 'src/geometry/captured_image_transform.dart';
 export 'src/geometry/normalized_rect.dart';
 export 'src/geometry/preview_geometry.dart';
+export 'src/processor/card_scan_detection.dart';
 export 'src/processor/card_scan_processor.dart';
 export 'src/processor/card_scan_processor_options.dart';
 export 'src/theme/camera_controls_style.dart';
