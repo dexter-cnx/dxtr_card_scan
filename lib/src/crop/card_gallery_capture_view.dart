@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../capture/capture_confirmation_mode.dart';
-import '../capture/card_capture_image.dart';
-import '../capture/card_capture_result.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../ui/card_scan_labels.dart';
 import 'card_gallery_crop_view.dart';
