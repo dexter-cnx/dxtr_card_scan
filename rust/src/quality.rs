@@ -46,10 +46,7 @@ pub fn analyze_quality(image: &DynamicImage) -> QualityAnalysis {
     let gray = working.to_luma8();
     let blur = measure_blur(&gray);
     let exposure = measure_exposure(&gray);
-    let detection = detect_card_quad_with_contrast_fallback(
-        &working,
-        DetectionOptions::default(),
-    );
+    let detection = detect_card_quad_with_contrast_fallback(&working, DetectionOptions::default());
 
     QualityAnalysis {
         blur,
