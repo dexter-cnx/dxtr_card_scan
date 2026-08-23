@@ -1,7 +1,8 @@
 use std::{ffi::CString, panic::AssertUnwindSafe, ptr};
 
 use crate::{
-    detection::{detect_card_quad, DetectionOptions},
+    contrast_region::detect_card_quad_with_contrast_fallback,
+    detection::DetectionOptions,
     model::ProcessorOptions,
     processor::process_encoded,
 };
@@ -122,25 +123,26 @@ pub unsafe extern "C" fn card_scan_detect(
             }
         };
 
-        let value = detect_card_quad(&image, DetectionOptions::default()).map(|result| {
-            let corners = result
-                .quad
-                .corners
-                .iter()
-                .map(|point| serde_json::json!({"x": point.x, "y": point.y}))
-                .collect::<Vec<_>>();
-            serde_json::json!({
-                "quad": {"corners": corners},
-                "score": {
-                    "total": result.score.total,
-                    "area": result.score.area,
-                    "rectangularity": result.score.rectangularity,
-                    "aspect_ratio": result.score.aspect_ratio,
-                    "alignment": result.score.alignment,
-                    "edge_strength": result.score.edge_strength,
-                }
-            })
-        });
+        let value = detect_card_quad_with_contrast_fallback(&image, DetectionOptions::default())
+            .map(|result| {
+                let corners = result
+                    .quad
+                    .corners
+                    .iter()
+                    .map(|point| serde_json::json!({"x": point.x, "y": point.y}))
+                    .collect::<Vec<_>>();
+                serde_json::json!({
+                    "quad": {"corners": corners},
+                    "score": {
+                        "total": result.score.total,
+                        "area": result.score.area,
+                        "rectangularity": result.score.rectangularity,
+                        "aspect_ratio": result.score.aspect_ratio,
+                        "alignment": result.score.alignment,
+                        "edge_strength": result.score.edge_strength,
+                    }
+                })
+            });
 
         match serde_json::to_vec(&value) {
             Ok(data) => CardScanResult::success(data),
