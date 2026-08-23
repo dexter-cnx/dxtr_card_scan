@@ -11,6 +11,17 @@ rust/target/
 pubspec.lock
 **/.flutter-plugins-dependencies
 android/.cxx/
+# Dart / Flutter
+.dart_tool/
+**/.dart_tool/
+build/
+**/build/
+
+# Android / Gradle
+.gradle/
+**/.gradle/
+.cxx/
+**/.cxx/
 example/android/
 example/ios/
 example/macos/
