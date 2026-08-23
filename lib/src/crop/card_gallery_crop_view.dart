@@ -51,7 +51,7 @@ class CardGalleryCropView extends StatefulWidget {
   final CardScanProcessorOptions processOptions;
   final NormalizedRect initialRect;
 
-  /// Uses the native card-edge detector to seed the editable crop rectangle.
+  /// Uses native card detection to seed the editable crop rectangle.
   /// Falls back to [initialRect] when no reliable card is found.
   final bool autoDetectInitialCrop;
 
@@ -81,6 +81,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
   final CardCapturePipeline _pipeline = const CardCapturePipeline();
 
   PreparedCardCapture? _prepared;
+  Future<PreparedCardCapture>? _fullPrepareFuture;
   ImageCropSelection? _selection;
   CardCaptureImage? _rectified;
   bool _busy = true;
@@ -109,6 +110,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
         oldWidget.initialCropPadding != widget.initialCropPadding ||
         oldWidget.minInitialCropConfidence != widget.minInitialCropConfidence) {
       _prepared = null;
+      _fullPrepareFuture = null;
       _selection = null;
       _rectified = null;
       _prepare();
@@ -134,6 +136,14 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     }
   }
 
+  Future<PreparedCardCapture> _prepareFull(String sourcePath) async {
+    final prepared = await _pipeline.prepare(sourcePath);
+    if (!mounted || sourcePath != widget.sourcePath) return prepared;
+    _prepared = prepared;
+    await widget.onOriginalReady?.call(prepared.original);
+    return prepared;
+  }
+
   Future<void> _prepare() async {
     final sourcePath = widget.sourcePath;
     _errorTimer?.cancel();
@@ -142,14 +152,15 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       _status = widget.labels.preparing;
       _error = null;
     });
+
     try {
-      final prepared = await _pipeline.prepare(sourcePath);
+      final preview = await _pipeline.preparePreview(sourcePath);
       if (!mounted || sourcePath != widget.sourcePath) return;
 
       var initialRect = widget.initialRect;
       if (widget.autoDetectInitialCrop) {
         try {
-          final detection = await _pipeline.detect(prepared.normalized);
+          final detection = await _pipeline.detect(preview);
           if (detection != null &&
               detection.confidence >= widget.minInitialCropConfidence) {
             initialRect = detection.boundingRect(
@@ -163,21 +174,21 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       }
 
       if (!mounted || sourcePath != widget.sourcePath) return;
-      await widget.onOriginalReady?.call(prepared.original);
-      if (!mounted || sourcePath != widget.sourcePath) return;
       setState(() {
-        _prepared = prepared;
         _selection = ImageCropSelection(
-          imagePath: prepared.normalized.path,
+          imagePath: preview.path,
           normalizedRect: initialRect,
         );
+        _busy = false;
+        _status = null;
       });
+
+      final fullPrepare = _prepareFull(sourcePath);
+      _fullPrepareFuture = fullPrepare;
+      unawaited(fullPrepare.then<void>((_) {}, onError: (_) {}));
     } catch (error) {
       if (mounted && sourcePath == widget.sourcePath) {
         _showError(error);
-      }
-    } finally {
-      if (mounted && sourcePath == widget.sourcePath) {
         setState(() {
           _busy = false;
           _status = null;
@@ -186,10 +197,22 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     }
   }
 
-  Future<void> _scan() async {
+  Future<PreparedCardCapture> _ensurePrepared() async {
     final prepared = _prepared;
+    if (prepared != null) return prepared;
+
+    final pending = _fullPrepareFuture;
+    if (pending != null) return pending;
+
+    final sourcePath = widget.sourcePath;
+    final future = _prepareFull(sourcePath);
+    _fullPrepareFuture = future;
+    return future;
+  }
+
+  Future<void> _scan() async {
     final selection = _selection;
-    if (prepared == null || selection == null || _busy) return;
+    if (selection == null || _busy) return;
 
     _errorTimer?.cancel();
     setState(() {
@@ -198,6 +221,9 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       _error = null;
     });
     try {
+      final prepared = await _ensurePrepared();
+      if (!mounted) return;
+
       final rectified = await _pipeline.cropAndRectify(
         normalized: prepared.normalized,
         sourceRoi: selection.normalizedRect,
