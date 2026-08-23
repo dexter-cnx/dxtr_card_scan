@@ -47,6 +47,7 @@ class GalleryCropLabels {
     this.confirmAction = 'Use scan',
     this.retryAction = 'Adjust crop',
     this.errorPrefix = 'Processor error',
+    this.dismissErrorTooltip = 'Dismiss error',
   });
 
   final String title;
@@ -62,4 +63,5 @@ class GalleryCropLabels {
   final String confirmAction;
   final String retryAction;
   final String errorPrefix;
+  final String dismissErrorTooltip;
 }
