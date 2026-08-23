@@ -58,6 +58,48 @@ class CardCapturePipeline {
     });
   }
 
+  /// Creates a small EXIF-normalized image intended only for Gallery preview
+  /// and initial card detection. Final crop/processing still uses [prepare].
+  Future<CardCaptureImage> preparePreview(
+    String sourcePath, {
+    int maxDimension = 960,
+  }) {
+    return Isolate.run(() {
+      final bytes = File(sourcePath).readAsBytesSync();
+      final decoded = image_lib.decodeImage(bytes);
+      if (decoded == null) {
+        throw StateError('Unable to decode selected image.');
+      }
+
+      final normalized = image_lib.bakeOrientation(decoded);
+      final longest = normalized.width > normalized.height
+          ? normalized.width
+          : normalized.height;
+      final scale = longest > maxDimension ? maxDimension / longest : 1.0;
+      final preview = scale < 1.0
+          ? image_lib.copyResize(
+              normalized,
+              width: (normalized.width * scale).round().clamp(1, maxDimension),
+              height: (normalized.height * scale).round().clamp(1, maxDimension),
+              interpolation: image_lib.Interpolation.linear,
+            )
+          : normalized;
+
+      final directory = Directory.systemTemp.createTempSync('dxtr_card_scan_preview_');
+      final previewPath = '${directory.path}/preview.jpg';
+      File(previewPath).writeAsBytesSync(
+        image_lib.encodeJpg(preview, quality: 86),
+        flush: true,
+      );
+
+      return CardCaptureImage(
+        path: previewPath,
+        width: preview.width,
+        height: preview.height,
+      );
+    });
+  }
+
   Future<CardScanDetection?> detect(CardCaptureImage image) {
     return Isolate.run(() => CardScanProcessor().detectFile(image.path));
   }
