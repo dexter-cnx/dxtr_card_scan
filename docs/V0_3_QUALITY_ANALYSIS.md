@@ -15,7 +15,7 @@ Add deterministic, measurement-only capture quality analysis before any live aut
 - `exposure.brightFraction` — fraction of near-white pixels.
 - `exposure.score` — normalized exposure-quality measurement.
 - `cardCoverage` — normalized detected-card area within the analysis image.
-- `detectionConfidence` — deterministic detector total confidence.
+- `detectionConfidence` — hybrid detector total confidence.
 
 ## API
 
@@ -25,6 +25,12 @@ final fromFile = await processor.analyzeQualityFile(path);
 ```
 
 The Rust ABI symbol is `card_scan_analyze_quality`.
+
+## Calibration harness
+
+The integrated example reports measurements for the original capture and the rectified crop after Camera or Gallery completion. Analysis is performed in a background isolate and the values can be copied as a stable text record for calibration evidence.
+
+See `docs/V0_3_QUALITY_CALIBRATION.md` for the evidence matrix and threshold policy.
 
 ## Policy boundary
 
