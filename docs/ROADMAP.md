@@ -58,14 +58,18 @@ Before starting quality metrics, move end-to-end capture behavior behind package
 - [x] package-owned Gallery picker with custom-picker escape hatch
 - [x] package-owned Gallery crop / rectify / process flow
 - [x] configurable Camera and Gallery labels for host localization
-- [ ] CI + physical-device regression validation
-- [ ] merge PR #9
+- [x] CI + physical-device regression validation
+- [x] merge PR #9
+
+PR #9 was squash-merged to `main` on 2026-08-23 as `0805c55f5efb4aa513d7647777c7f3c140d40e85`.
 
 ## 0.3 Quality analysis
 - [ ] blur score
 - [ ] exposure
 - [ ] card coverage
 - [ ] detection confidence
+
+Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable.
 
 ## 0.4 Live detection
 - [ ] throttled analysis
