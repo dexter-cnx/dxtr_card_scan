@@ -1,10 +1,8 @@
 use std::{ffi::CString, panic::AssertUnwindSafe, ptr};
 
 use crate::{
-    contrast_region::detect_card_quad_with_contrast_fallback,
-    detection::DetectionOptions,
-    model::ProcessorOptions,
-    processor::process_encoded,
+    contrast_region::detect_card_quad_with_contrast_fallback, detection::DetectionOptions,
+    model::ProcessorOptions, processor::process_encoded,
 };
 
 const STATUS_OK: i32 = 0;
