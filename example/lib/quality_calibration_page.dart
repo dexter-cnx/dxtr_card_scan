@@ -25,7 +25,7 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
     final originalPath = widget.result.original.path;
     final croppedPath = widget.result.cropped.path;
     return Isolate.run(() async {
-      final pipeline = CardCapturePipeline();
+      const pipeline = CardCapturePipeline();
       final prepared = await pipeline.prepare(originalPath);
       final processor = CardScanProcessor();
       final original = await processor.analyzeQualityFile(
