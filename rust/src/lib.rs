@@ -1,9 +1,11 @@
+pub mod contrast_region;
 pub mod detection;
 mod ffi;
 pub mod model;
 pub mod processor;
 pub mod warp;
 
+pub use contrast_region::{detect_card_quad_with_contrast_fallback, detect_contrast_region};
 pub use detection::{
     detect_card_quad, CandidateScore, DetectionOptions, DetectionResult, Point, Quad,
 };
