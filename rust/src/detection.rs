@@ -4,6 +4,8 @@ use image::{imageops::FilterType, DynamicImage, GrayImage};
 use serde::Deserialize;
 
 const DETECTION_MAX_DIMENSION: u32 = 1200;
+const MIN_ASPECT_SCORE: f32 = 0.78;
+const BORDER_MARGIN_RATIO: f32 = 0.005;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct Point {
@@ -153,7 +155,8 @@ fn sobel_gradient(input: &GrayImage) -> (Vec<f32>, f32, f32) {
                     .get_pixel((x as i32 + dx) as u32, (y as i32 + dy) as u32)
                     .0[0] as f32
             };
-            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0) + 2.0 * sample(1, 0)
+            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0)
+                + 2.0 * sample(1, 0)
                 - sample(-1, 1)
                 + sample(1, 1);
             let gy = -sample(-1, -1) - 2.0 * sample(0, -1) - sample(1, -1)
@@ -281,6 +284,10 @@ fn candidate_from_component(
     let max_x = corners.iter().map(|point| point.x).max()? as f32;
     let min_y = corners.iter().map(|point| point.y).min()? as f32;
     let max_y = corners.iter().map(|point| point.y).max()? as f32;
+    if touches_image_border(min_x, min_y, max_x, max_y, width, height) {
+        return None;
+    }
+
     let bbox_area = ((max_x - min_x).max(1.0)) * ((max_y - min_y).max(1.0));
     let rectangularity = (polygon_area / bbox_area).clamp(0.0, 1.0);
     if rectangularity < 0.40 {
@@ -293,7 +300,7 @@ fn candidate_from_component(
         .filter(|expected| expected.is_finite() && *expected > 0.0)
         .map(|expected| ratio_similarity(detected_ratio, expected))
         .unwrap_or(1.0);
-    if aspect_score < 0.55 {
+    if aspect_score < MIN_ASPECT_SCORE {
         return None;
     }
 
@@ -316,10 +323,10 @@ fn candidate_from_component(
             .clamp(0.0, 1.0)
     };
 
-    let area_score = (area_ratio / 0.65).clamp(0.0, 1.0);
-    let total = 0.25 * area_score
+    let area_score = area_plausibility(area_ratio);
+    let total = 0.10 * area_score
         + 0.25 * rectangularity
-        + 0.30 * aspect_score
+        + 0.45 * aspect_score
         + 0.10 * alignment
         + 0.10 * edge_strength;
 
@@ -339,6 +346,32 @@ fn candidate_from_component(
             edge_strength,
         },
     })
+}
+
+fn touches_image_border(
+    min_x: f32,
+    min_y: f32,
+    max_x: f32,
+    max_y: f32,
+    width: u32,
+    height: u32,
+) -> bool {
+    let margin_x = width as f32 * BORDER_MARGIN_RATIO;
+    let margin_y = height as f32 * BORDER_MARGIN_RATIO;
+    min_x <= margin_x
+        || min_y <= margin_y
+        || max_x >= width.saturating_sub(1) as f32 - margin_x
+        || max_y >= height.saturating_sub(1) as f32 - margin_y
+}
+
+fn area_plausibility(area_ratio: f32) -> f32 {
+    if area_ratio <= 0.12 {
+        (area_ratio / 0.12).clamp(0.0, 1.0)
+    } else if area_ratio <= 0.55 {
+        1.0
+    } else {
+        ((0.85 - area_ratio) / 0.30).clamp(0.0, 1.0)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -521,6 +554,17 @@ mod tests {
             },
         );
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn rejects_candidate_touching_image_border() {
+        let image = rectangle_fixture(180, 120, 0, 20);
+        assert!(detect_card_quad(&image, DetectionOptions::default()).is_none());
+    }
+
+    #[test]
+    fn area_plausibility_does_not_reward_oversized_candidates() {
+        assert!(area_plausibility(0.25) > area_plausibility(0.78));
     }
 
     #[test]
