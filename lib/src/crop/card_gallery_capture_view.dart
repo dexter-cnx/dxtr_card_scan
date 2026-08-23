@@ -36,8 +36,7 @@ class CardGalleryCaptureView extends StatefulWidget {
     this.onClose,
     super.key,
   })  : assert(initialCropPadding >= 0 && initialCropPadding < .5),
-        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1),
-        assert(!errorDisplayDuration.isNegative);
+        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1);
 
   final CardScanProcessorOptions processOptions;
   final bool autoDetectInitialCrop;
