@@ -1,4 +1,6 @@
-.PHONY: get format format-check analyze test example-get example-analyze example-platforms example-build-android rust-format rust-format-check rust-clippy rust-test rust-ci install-hooks pre-push ci
+.PHONY: setup get format format-check analyze test example-get example-analyze example-platforms example-build-android rust-format rust-format-check rust-clippy rust-test rust-ci install-hooks pre-push ci
+
+setup: get install-hooks
 
 get:
 	flutter pub get

@@ -219,7 +219,8 @@ class _NativeCameraPageState extends State<NativeCameraPage>
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: camera == null || _busy ? null : _captureAndProcess,
+                  onPressed:
+                      camera == null || _busy ? null : _captureAndProcess,
                   icon: _busy
                       ? const SizedBox.square(
                           dimension: 18,
@@ -296,7 +297,8 @@ class _NativeGalleryPageState extends State<NativeGalleryPage> {
     }
     final normalized = image_lib.bakeOrientation(decoded);
     final encoded = image_lib.encodeJpg(normalized, quality: 95);
-    final directory = await Directory.systemTemp.createTemp('card_scan_gallery_');
+    final directory =
+        await Directory.systemTemp.createTemp('card_scan_gallery_');
     final file = File('${directory.path}/normalized.jpg');
     await file.writeAsBytes(encoded, flush: true);
     return file;

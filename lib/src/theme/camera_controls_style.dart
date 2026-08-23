@@ -2,10 +2,10 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
-/// Visual style for camera controls used by host/example camera UIs.
+/// Visual style for camera controls used by package-owned camera UIs.
 ///
-/// Color fields are nullable on purpose. When omitted, the host should resolve
-/// them from its Material [ColorScheme].
+/// Color fields are nullable on purpose. When omitted, the package resolves
+/// them from the host Material [ColorScheme].
 class CameraControlsStyle {
   const CameraControlsStyle({
     this.shutterSize = 80,
@@ -24,30 +24,22 @@ class CameraControlsStyle {
         assert(shutterBorderWidth >= 0);
 
   final double shutterSize;
-  final ShapeBorder shutterShape;
+  final OutlinedBorder shutterShape;
   final Color? shutterBackgroundColor;
   final Color? shutterForegroundColor;
   final Color? shutterBorderColor;
   final double shutterBorderWidth;
 
-  /// Background shared by Back / Flash / Torch when inactive.
   final Color? controlBackgroundColor;
-
-  /// Foreground shared by Back / Flash / Torch when inactive.
   final Color? controlForegroundColor;
-
-  /// Background for active controls such as Torch-on or Flash-on.
   final Color? activeControlBackgroundColor;
-
-  /// Foreground for active controls such as Torch-on or Flash-on.
   final Color? activeControlForegroundColor;
-
   final Color? zoomBadgeBackgroundColor;
   final Color? zoomBadgeForegroundColor;
 
   CameraControlsStyle copyWith({
     double? shutterSize,
-    ShapeBorder? shutterShape,
+    OutlinedBorder? shutterShape,
     Color? shutterBackgroundColor,
     Color? shutterForegroundColor,
     Color? shutterBorderColor,
@@ -88,10 +80,10 @@ class CameraControlsStyle {
     CameraControlsStyle b,
     double t,
   ) {
+    final shape = ShapeBorder.lerp(a.shutterShape, b.shutterShape, t);
     return CameraControlsStyle(
       shutterSize: lerpDouble(a.shutterSize, b.shutterSize, t)!,
-      shutterShape:
-          ShapeBorder.lerp(a.shutterShape, b.shutterShape, t) ?? b.shutterShape,
+      shutterShape: shape is OutlinedBorder ? shape : b.shutterShape,
       shutterBackgroundColor:
           Color.lerp(a.shutterBackgroundColor, b.shutterBackgroundColor, t),
       shutterForegroundColor:

@@ -12,9 +12,13 @@ environment:
   flutter: '>=3.22.0'
 
 dependencies:
+  camera: ^0.11.0+2
   ffi: ^2.1.4
+  file_selector: ^1.0.3
   flutter:
     sdk: flutter
+  image: ^4.9.2
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

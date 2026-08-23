@@ -31,7 +31,8 @@ void main() {
       'bottom': 0.8,
     });
     expect(json['auto_detect'], isFalse);
-    expect((json['perspective_quad'] as Map<String, dynamic>)['corners'], hasLength(4));
+    expect((json['perspective_quad'] as Map<String, dynamic>)['corners'],
+        hasLength(4));
     expect(json['warp_long_edge'], 1600);
     expect(json['enhance_for_ocr'], isTrue);
     expect(json['grayscale'], isFalse);

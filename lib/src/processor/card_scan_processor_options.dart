@@ -54,7 +54,8 @@ class CardScanProcessorOptions {
     this.outputFormat = ProcessorOutputFormat.jpeg,
     this.jpegQuality = 92,
   })  : assert(quarterTurnsClockwise >= 0),
-        assert(warpLongEdge == null || (warpLongEdge >= 2 && warpLongEdge <= 4096)),
+        assert(warpLongEdge == null ||
+            (warpLongEdge >= 2 && warpLongEdge <= 4096)),
         assert(maxDimension == null || maxDimension > 0),
         assert(jpegQuality >= 1 && jpegQuality <= 100),
         assert(!autoDetect || perspectiveQuad == null);
@@ -80,7 +81,8 @@ class CardScanProcessorOptions {
             'bottom': value.bottom,
           },
         'auto_detect': autoDetect,
-        if (perspectiveQuad case final value?) 'perspective_quad': value.toJson(),
+        if (perspectiveQuad case final value?)
+          'perspective_quad': value.toJson(),
         if (warpLongEdge case final value?) 'warp_long_edge': value,
         'enhance_for_ocr': enhanceForOcr,
         'grayscale': grayscale,

@@ -2,14 +2,10 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
-hook_path="$repo_root/.git/hooks/pre-push"
+cd "$repo_root"
 
-cat >"$hook_path" <<'HOOK'
-#!/usr/bin/env bash
-set -euo pipefail
-repo_root="$(git rev-parse --show-toplevel)"
-exec bash "$repo_root/tool/pre_push.sh"
-HOOK
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-push tool/pre_push.sh
 
-chmod +x "$hook_path"
-echo "Installed pre-push hook: $hook_path"
+echo "Configured core.hooksPath=.githooks"
+echo "Pre-push hook: $repo_root/.githooks/pre-push"
