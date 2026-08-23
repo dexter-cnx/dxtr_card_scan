@@ -64,10 +64,17 @@ Before starting quality metrics, move end-to-end capture behavior behind package
 PR #9 was squash-merged to `main` on 2026-08-23 as `0805c55f5efb4aa513d7647777c7f3c140d40e85`.
 
 ## 0.3 Quality analysis
-- [ ] blur score
-- [ ] exposure
-- [ ] card coverage
-- [ ] detection confidence
+- [x] blur score
+- [x] exposure
+- [x] card coverage
+- [x] detection confidence
+- [x] measurement-only Rust ABI + Dart API
+- [x] PR #10 implementation + CI/review
+- [x] Camera/Gallery calibration harness
+- [ ] collect representative physical-device calibration evidence
+- [ ] document candidate readiness thresholds from evidence
+
+PR #10 was squash-merged to `main` on 2026-08-23 as `0cac8fb9f53d7916433108c773fc0d8fc2162907`.
 
 Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable.
 
