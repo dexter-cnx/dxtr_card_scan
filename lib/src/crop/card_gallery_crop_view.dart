@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -35,7 +36,8 @@ class CardGalleryCropView extends StatefulWidget {
     ),
     this.autoDetectInitialCrop = true,
     this.initialCropPadding = .02,
-    this.minInitialCropConfidence = .70,
+    this.minInitialCropConfidence = .60,
+    this.errorDisplayDuration = const Duration(seconds: 5),
     this.confirmationMode = CaptureConfirmationMode.afterCrop,
     this.labels = const GalleryCropLabels(),
     this.onOriginalReady,
@@ -43,7 +45,8 @@ class CardGalleryCropView extends StatefulWidget {
     this.onClose,
     super.key,
   })  : assert(initialCropPadding >= 0 && initialCropPadding < .5),
-        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1);
+        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1),
+        assert(!errorDisplayDuration.isNegative);
 
   final String sourcePath;
   final CardScanProcessorOptions processOptions;
@@ -58,6 +61,11 @@ class CardGalleryCropView extends StatefulWidget {
 
   /// Minimum detector score required before replacing [initialRect].
   final double minInitialCropConfidence;
+
+  /// How long a processor error remains visible before clearing itself.
+  ///
+  /// Use [Duration.zero] to keep the error visible until the user dismisses it.
+  final Duration errorDisplayDuration;
 
   final CaptureConfirmationMode confirmationMode;
   final GalleryCropLabels labels;
@@ -79,11 +87,18 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
   bool _busy = true;
   Object? _error;
   String? _status;
+  Timer? _errorTimer;
 
   @override
   void initState() {
     super.initState();
     _prepare();
+  }
+
+  @override
+  void dispose() {
+    _errorTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -101,8 +116,28 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     }
   }
 
+  void _clearError() {
+    _errorTimer?.cancel();
+    _errorTimer = null;
+    if (_error != null && mounted) {
+      setState(() => _error = null);
+    }
+  }
+
+  void _showError(Object error) {
+    _errorTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _error = error);
+    if (widget.errorDisplayDuration > Duration.zero) {
+      _errorTimer = Timer(widget.errorDisplayDuration, () {
+        if (mounted) setState(() => _error = null);
+      });
+    }
+  }
+
   Future<void> _prepare() async {
     final sourcePath = widget.sourcePath;
+    _errorTimer?.cancel();
     setState(() {
       _busy = true;
       _status = widget.labels.preparing;
@@ -140,7 +175,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       });
     } catch (error) {
       if (mounted && sourcePath == widget.sourcePath) {
-        setState(() => _error = error);
+        _showError(error);
       }
     } finally {
       if (mounted && sourcePath == widget.sourcePath) {
@@ -157,6 +192,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     final selection = _selection;
     if (prepared == null || selection == null || _busy) return;
 
+    _errorTimer?.cancel();
     setState(() {
       _busy = true;
       _status = widget.labels.processing;
@@ -177,7 +213,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       }
       await _finish(rectified, selection.normalizedRect);
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      _showError(error);
     } finally {
       if (mounted) {
         setState(() {
@@ -191,6 +227,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
   Future<void> _finish(CardCaptureImage rectified, NormalizedRect roi) async {
     final prepared = _prepared;
     if (prepared == null) return;
+    _errorTimer?.cancel();
     setState(() {
       _busy = true;
       _status = widget.labels.processing;
@@ -210,7 +247,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
         ),
       );
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      _showError(error);
     } finally {
       if (mounted) {
         setState(() {
@@ -297,12 +334,23 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
                 ),
                 if (_error != null)
                   Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      '${labels.errorPrefix}: $_error',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${labels.errorPrefix}: $_error',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: _clearError,
+                          tooltip: labels.dismissErrorTooltip,
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
                   ),
                 SafeArea(
