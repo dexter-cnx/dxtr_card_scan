@@ -18,6 +18,9 @@ if ! cmp -s "$before_diff" "$after_diff"; then
 fi
 
 make format-check
+make analyze
+make test
+make example-analyze
 make rust-format-check
 make rust-clippy
 make rust-test
