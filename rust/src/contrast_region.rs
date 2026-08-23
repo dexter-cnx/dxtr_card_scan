@@ -1,28 +1,86 @@
 use std::collections::VecDeque;
 
-use image::{DynamicImage, GrayImage};
+use image::{imageops::FilterType, DynamicImage, GrayImage};
 
 use crate::detection::{
     detect_card_quad, CandidateScore, DetectionOptions, DetectionResult, Point, Quad,
 };
 
-const MIN_CONTRAST: f32 = 24.0;
-const MIN_COMPONENT_PIXELS: usize = 48;
-const MAX_AREA_RATIO: f32 = 0.75;
+const GALLERY_DETECTION_MAX_DIMENSION: u32 = 640;
+const MIN_CONTRAST: f32 = 20.0;
+const MIN_COMPONENT_PIXELS: usize = 32;
+const MAX_AREA_RATIO: f32 = 0.70;
 const BORDER_MARGIN_RATIO: f32 = 0.01;
+const STRONG_ASPECT_SCORE: f32 = 0.80;
 
-/// Runs the existing edge detector first and falls back to a contrast-region
-/// detector only when the edge detector cannot produce a candidate.
+/// Fast hybrid detector intended for Gallery initial-crop seeding.
+///
+/// Detection runs on a small thumbnail and evaluates both the existing edge
+/// detector and the contrast-region detector. The better card-like candidate
+/// wins; unlike a fallback-only strategy, a weak edge candidate cannot prevent
+/// a stronger contrast candidate from being considered.
 pub fn detect_card_quad_with_contrast_fallback(
     image: &DynamicImage,
     options: DetectionOptions,
 ) -> Option<DetectionResult> {
-    detect_card_quad(image, options).or_else(|| detect_contrast_region(image, options))
+    let working = resize_for_gallery_detection(image);
+    let edge = detect_card_quad(&working, options);
+    let contrast = detect_contrast_region(&working, options);
+    choose_candidate(edge, contrast)
+}
+
+fn resize_for_gallery_detection(image: &DynamicImage) -> DynamicImage {
+    let width = image.width();
+    let height = image.height();
+    let longest = width.max(height);
+    if longest <= GALLERY_DETECTION_MAX_DIMENSION {
+        return image.clone();
+    }
+
+    let scale = GALLERY_DETECTION_MAX_DIMENSION as f64 / longest as f64;
+    let resized_width = ((width as f64 * scale).round() as u32).max(1);
+    let resized_height = ((height as f64 * scale).round() as u32).max(1);
+    image.resize(resized_width, resized_height, FilterType::Triangle)
+}
+
+fn choose_candidate(
+    edge: Option<DetectionResult>,
+    contrast: Option<DetectionResult>,
+) -> Option<DetectionResult> {
+    match (edge, contrast) {
+        (None, None) => None,
+        (Some(candidate), None) | (None, Some(candidate)) => Some(candidate),
+        (Some(edge), Some(contrast)) => {
+            // A common false positive on textured backgrounds is a large edge
+            // component whose rectangle has only a marginal ID-1 aspect match.
+            // Prefer a strong contrast-region aspect match in that case.
+            if edge.score.aspect_ratio < STRONG_ASPECT_SCORE
+                && contrast.score.aspect_ratio >= STRONG_ASPECT_SCORE
+            {
+                return Some(contrast);
+            }
+
+            let edge_quality = candidate_quality(edge.score);
+            let contrast_quality = candidate_quality(contrast.score);
+            if contrast_quality > edge_quality {
+                Some(contrast)
+            } else {
+                Some(edge)
+            }
+        }
+    }
+}
+
+fn candidate_quality(score: CandidateScore) -> f32 {
+    0.50 * score.aspect_ratio
+        + 0.25 * score.rectangularity
+        + 0.10 * score.area
+        + 0.10 * score.alignment
+        + 0.05 * score.edge_strength
 }
 
 /// Finds a card-like region whose luminance differs materially from the image
-/// border. This is intended as a conservative fallback for Gallery initial
-/// crop seeding, not as a replacement for the edge detector.
+/// border. This detector is used only for Gallery initial-crop seeding.
 pub fn detect_contrast_region(
     image: &DynamicImage,
     options: DetectionOptions,
@@ -35,49 +93,55 @@ pub fn detect_contrast_region(
     }
 
     let (background_mean, background_std_dev) = border_statistics(&gray);
-    let threshold = (background_std_dev * 1.35).max(MIN_CONTRAST);
+    let thresholds = [
+        (background_std_dev * 1.10).max(MIN_CONTRAST),
+        (background_std_dev * 0.80).max(MIN_CONTRAST * 0.75),
+    ];
 
-    let mask = gray
-        .pixels()
-        .map(|pixel| (pixel.0[0] as f32 - background_mean).abs() >= threshold)
-        .collect::<Vec<_>>();
-    let closed = dilate_mask(&mask, width, height, 2);
-
-    connected_components(&closed, width, height)
+    thresholds
         .into_iter()
-        .filter_map(|component| candidate_from_component(&gray, &component, options))
-        .max_by(|a, b| a.score.total.total_cmp(&b.score.total))
+        .filter_map(|threshold| {
+            let mask = gray
+                .pixels()
+                .map(|pixel| (pixel.0[0] as f32 - background_mean).abs() >= threshold)
+                .collect::<Vec<_>>();
+            let closed = dilate_mask(&mask, width, height, 1);
+
+            connected_components(&closed, width, height)
+                .into_iter()
+                .filter_map(|component| candidate_from_component(&gray, &component, options))
+                .max_by(|a, b| candidate_quality(a.score).total_cmp(&candidate_quality(b.score)))
+        })
+        .max_by(|a, b| candidate_quality(a.score).total_cmp(&candidate_quality(b.score)))
 }
 
 fn border_statistics(gray: &GrayImage) -> (f32, f32) {
     let width = gray.width();
     let height = gray.height();
-    let band_x = (width / 20).max(1);
-    let band_y = (height / 20).max(1);
-    let mut values = Vec::new();
+    let band_x = (width / 24).max(1);
+    let band_y = (height / 24).max(1);
+    let mut sum = 0.0f64;
+    let mut sum_sq = 0.0f64;
+    let mut count = 0usize;
 
     for y in 0..height {
         for x in 0..width {
             if x < band_x || x >= width - band_x || y < band_y || y >= height - band_y {
-                values.push(gray.get_pixel(x, y).0[0] as f32);
+                let value = gray.get_pixel(x, y).0[0] as f64;
+                sum += value;
+                sum_sq += value * value;
+                count += 1;
             }
         }
     }
 
-    if values.is_empty() {
+    if count == 0 {
         return (128.0, 0.0);
     }
 
-    let mean = values.iter().sum::<f32>() / values.len() as f32;
-    let variance = values
-        .iter()
-        .map(|value| {
-            let delta = *value - mean;
-            delta * delta
-        })
-        .sum::<f32>()
-        / values.len() as f32;
-    (mean, variance.sqrt())
+    let mean = sum / count as f64;
+    let variance = (sum_sq / count as f64 - mean * mean).max(0.0);
+    (mean as f32, variance.sqrt() as f32)
 }
 
 fn dilate_mask(mask: &[bool], width: u32, height: u32, radius: i32) -> Vec<bool> {
@@ -167,7 +231,7 @@ fn candidate_from_component(
     let box_height = (max_y - min_y + 1) as f32;
     let image_area = width as f32 * height as f32;
     let area_ratio = box_width * box_height / image_area;
-    if area_ratio < options.min_area_ratio.max(0.035) || area_ratio > MAX_AREA_RATIO {
+    if area_ratio < options.min_area_ratio.max(0.025) || area_ratio > MAX_AREA_RATIO {
         return None;
     }
 
@@ -177,12 +241,12 @@ fn candidate_from_component(
         .filter(|expected| expected.is_finite() && *expected > 0.0)
         .map(|expected| ratio_similarity(actual_ratio, expected))
         .unwrap_or(1.0);
-    if aspect_score < 0.68 {
+    if aspect_score < 0.72 {
         return None;
     }
 
     let fill_ratio = (component.len() as f32 / (box_width * box_height)).clamp(0.0, 1.0);
-    if fill_ratio < 0.42 {
+    if fill_ratio < 0.34 {
         return None;
     }
 
@@ -192,7 +256,7 @@ fn candidate_from_component(
         .map(|(x, y)| gray.get_pixel(*x, *y).0[0] as f32)
         .sum::<f32>()
         / component.len() as f32;
-    let contrast_score = ((region_mean - background_mean).abs() / 96.0).clamp(0.0, 1.0);
+    let contrast_score = ((region_mean - background_mean).abs() / 80.0).clamp(0.0, 1.0);
 
     let center_x = (min_x + max_x) as f32 * 0.5;
     let center_y = (min_y + max_y) as f32 * 0.5;
@@ -200,11 +264,14 @@ fn candidate_from_component(
     let dy = (center_y - height as f32 * 0.5).abs() / (height as f32 * 0.5);
     let alignment = (1.0 - (dx * dx + dy * dy).sqrt() / 2.0f32.sqrt()).clamp(0.0, 1.0);
     let area_score = area_plausibility(area_ratio);
-    let total = 0.15 * area_score
-        + 0.25 * fill_ratio
-        + 0.40 * aspect_score
-        + 0.10 * alignment
-        + 0.10 * contrast_score;
+    let total = candidate_quality(CandidateScore {
+        total: 0.0,
+        area: area_score,
+        rectangularity: fill_ratio,
+        aspect_ratio: aspect_score,
+        alignment,
+        edge_strength: contrast_score,
+    });
 
     let denom_x = width.saturating_sub(1).max(1) as f32;
     let denom_y = height.saturating_sub(1).max(1) as f32;
@@ -266,12 +333,12 @@ fn ratio_similarity(actual: f32, expected: f32) -> f32 {
 }
 
 fn area_plausibility(area_ratio: f32) -> f32 {
-    if area_ratio <= 0.08 {
-        (area_ratio / 0.08).clamp(0.0, 1.0)
-    } else if area_ratio <= 0.45 {
+    if area_ratio <= 0.06 {
+        (area_ratio / 0.06).clamp(0.0, 1.0)
+    } else if area_ratio <= 0.42 {
         1.0
     } else {
-        ((0.75 - area_ratio) / 0.30).clamp(0.0, 1.0)
+        ((0.70 - area_ratio) / 0.28).clamp(0.0, 1.0)
     }
 }
 
@@ -325,6 +392,44 @@ mod tests {
     }
 
     #[test]
+    fn hybrid_prefers_stronger_card_aspect_candidate() {
+        let weak_edge = DetectionResult {
+            quad: Quad {
+                corners: [
+                    Point { x: 0.1, y: 0.1 },
+                    Point { x: 0.9, y: 0.1 },
+                    Point { x: 0.9, y: 0.9 },
+                    Point { x: 0.1, y: 0.9 },
+                ],
+            },
+            score: CandidateScore {
+                total: 0.72,
+                area: 1.0,
+                rectangularity: 0.90,
+                aspect_ratio: 0.70,
+                alignment: 1.0,
+                edge_strength: 0.80,
+            },
+        };
+        let strong_contrast = DetectionResult {
+            quad: weak_edge.quad,
+            score: CandidateScore {
+                total: 0.75,
+                area: 1.0,
+                rectangularity: 0.80,
+                aspect_ratio: 0.96,
+                alignment: 0.85,
+                edge_strength: 0.70,
+            },
+        };
+
+        assert_eq!(
+            choose_candidate(Some(weak_edge), Some(strong_contrast)),
+            Some(strong_contrast)
+        );
+    }
+
+    #[test]
     fn rejects_region_touching_image_border() {
         let mut image = GrayImage::from_pixel(240, 180, Luma([48]));
         for y in 80..140 {
@@ -332,6 +437,10 @@ mod tests {
                 image.put_pixel(x, y, Luma([190]));
             }
         }
-        assert!(detect_contrast_region(&DynamicImage::ImageLuma8(image), DetectionOptions::default()).is_none());
+        assert!(detect_contrast_region(
+            &DynamicImage::ImageLuma8(image),
+            DetectionOptions::default()
+        )
+        .is_none());
     }
 }
