@@ -114,7 +114,8 @@ fn measure_blur(gray: &GrayImage) -> BlurMeasurement {
 }
 
 fn measure_exposure(gray: &GrayImage) -> ExposureMeasurement {
-    if gray.is_empty() {
+    let count = (gray.width() as usize).saturating_mul(gray.height() as usize);
+    if count == 0 {
         return ExposureMeasurement {
             mean_luma: 0.0,
             dark_fraction: 0.0,
@@ -126,7 +127,6 @@ fn measure_exposure(gray: &GrayImage) -> ExposureMeasurement {
     let mut sum = 0u64;
     let mut dark = 0usize;
     let mut bright = 0usize;
-    let count = gray.len();
 
     for pixel in gray.pixels() {
         let value = pixel.0[0];
