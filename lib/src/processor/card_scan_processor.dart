@@ -7,6 +7,7 @@ import 'package:ffi/ffi.dart';
 
 import 'card_scan_detection.dart';
 import 'card_scan_processor_options.dart';
+import 'card_scan_quality_analysis.dart';
 
 final class _NativeCardScanResult extends Struct {
   @Int32()
@@ -40,6 +41,14 @@ typedef _DetectDart = Pointer<_NativeCardScanResult> Function(
   Pointer<Uint8>,
   int,
 );
+typedef _AnalyzeQualityNative = Pointer<_NativeCardScanResult> Function(
+  Pointer<Uint8>,
+  IntPtr,
+);
+typedef _AnalyzeQualityDart = Pointer<_NativeCardScanResult> Function(
+  Pointer<Uint8>,
+  int,
+);
 typedef _FreeNative = Void Function(Pointer<_NativeCardScanResult>);
 typedef _FreeDart = void Function(Pointer<_NativeCardScanResult>);
 
@@ -64,6 +73,10 @@ class CardScanProcessor {
     _detect = _library.lookupFunction<_DetectNative, _DetectDart>(
       'card_scan_detect',
     );
+    _analyzeQuality = _library
+        .lookupFunction<_AnalyzeQualityNative, _AnalyzeQualityDart>(
+      'card_scan_analyze_quality',
+    );
     _free = _library.lookupFunction<_FreeNative, _FreeDart>(
       'card_scan_result_free',
     );
@@ -72,6 +85,7 @@ class CardScanProcessor {
   final DynamicLibrary _library;
   late final _ProcessDart _process;
   late final _DetectDart _detect;
+  late final _AnalyzeQualityDart _analyzeQuality;
   late final _FreeDart _free;
 
   Uint8List processBytes(
@@ -130,6 +144,29 @@ class CardScanProcessor {
   Future<CardScanDetection?> detectFile(String path) async {
     final bytes = await File(path).readAsBytes();
     return detectBytes(bytes);
+  }
+
+  CardScanQualityAnalysis analyzeQualityBytes(Uint8List input) {
+    if (input.isEmpty) {
+      throw ArgumentError('input image must not be empty');
+    }
+
+    final inputPtr = calloc<Uint8>(input.length);
+    try {
+      inputPtr.asTypedList(input.length).setAll(0, input);
+      final output = _copyResult(_analyzeQuality(inputPtr, input.length));
+      final decoded = jsonDecode(utf8.decode(output));
+      return CardScanQualityAnalysis.fromJson(
+        (decoded as Map<Object?, Object?>).cast<String, Object?>(),
+      );
+    } finally {
+      calloc.free(inputPtr);
+    }
+  }
+
+  Future<CardScanQualityAnalysis> analyzeQualityFile(String path) async {
+    final bytes = await File(path).readAsBytes();
+    return analyzeQualityBytes(bytes);
   }
 
   Uint8List _copyResult(Pointer<_NativeCardScanResult> resultPtr) {
