@@ -4,6 +4,7 @@ export 'src/capture/capture_confirmation_mode.dart';
 export 'src/capture/capture_orientation_policy.dart';
 export 'src/capture/card_capture_controller.dart';
 export 'src/capture/card_capture_controls_config.dart';
+export 'src/capture/card_capture_controls_scope.dart';
 export 'src/capture/card_capture_image.dart';
 export 'src/capture/card_capture_pipeline.dart';
 export 'src/capture/card_capture_result.dart';
