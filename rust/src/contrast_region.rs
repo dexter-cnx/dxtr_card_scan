@@ -322,10 +322,22 @@ fn candidate_from_component(
     Some(DetectionResult {
         quad: Quad {
             corners: [
-                Point { x: min_x as f32 / denom_x, y: min_y as f32 / denom_y },
-                Point { x: max_x as f32 / denom_x, y: min_y as f32 / denom_y },
-                Point { x: max_x as f32 / denom_x, y: max_y as f32 / denom_y },
-                Point { x: min_x as f32 / denom_x, y: max_y as f32 / denom_y },
+                Point {
+                    x: min_x as f32 / denom_x,
+                    y: min_y as f32 / denom_y,
+                },
+                Point {
+                    x: max_x as f32 / denom_x,
+                    y: min_y as f32 / denom_y,
+                },
+                Point {
+                    x: max_x as f32 / denom_x,
+                    y: max_y as f32 / denom_y,
+                },
+                Point {
+                    x: min_x as f32 / denom_x,
+                    y: max_y as f32 / denom_y,
+                },
             ],
         },
         score: CandidateScore {
@@ -339,14 +351,7 @@ fn candidate_from_component(
     })
 }
 
-fn touches_border(
-    min_x: u32,
-    min_y: u32,
-    max_x: u32,
-    max_y: u32,
-    width: u32,
-    height: u32,
-) -> bool {
+fn touches_border(min_x: u32, min_y: u32, max_x: u32, max_y: u32, width: u32, height: u32) -> bool {
     let margin_x = ((width as f32 * BORDER_MARGIN_RATIO).round() as u32).max(1);
     let margin_y = ((height as f32 * BORDER_MARGIN_RATIO).round() as u32).max(1);
     min_x <= margin_x
