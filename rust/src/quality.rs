@@ -1,7 +1,10 @@
 use image::{imageops::FilterType, DynamicImage, GrayImage};
 use serde::Serialize;
 
-use crate::detection::{detect_card_quad, DetectionOptions, DetectionResult, Point};
+use crate::{
+    contrast_region::detect_card_quad_with_contrast_fallback,
+    detection::{DetectionOptions, DetectionResult, Point},
+};
 
 const ANALYSIS_MAX_DIMENSION: u32 = 960;
 const DARK_LUMA_THRESHOLD: u8 = 16;
@@ -34,7 +37,7 @@ pub struct QualityAnalysis {
     pub exposure: ExposureMeasurement,
     /// Fraction of the analysis image covered by the detected card quadrilateral.
     pub card_coverage: f32,
-    /// Total confidence reported by the deterministic card detector.
+    /// Total confidence reported by the package's hybrid card detector.
     pub detection_confidence: f32,
 }
 
@@ -43,7 +46,10 @@ pub fn analyze_quality(image: &DynamicImage) -> QualityAnalysis {
     let gray = working.to_luma8();
     let blur = measure_blur(&gray);
     let exposure = measure_exposure(&gray);
-    let detection = detect_card_quad(&working, DetectionOptions::default());
+    let detection = detect_card_quad_with_contrast_fallback(
+        &working,
+        DetectionOptions::default(),
+    );
 
     QualityAnalysis {
         blur,
