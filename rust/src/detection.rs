@@ -153,8 +153,7 @@ fn sobel_gradient(input: &GrayImage) -> (Vec<f32>, f32, f32) {
                     .get_pixel((x as i32 + dx) as u32, (y as i32 + dy) as u32)
                     .0[0] as f32
             };
-            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0)
-                + 2.0 * sample(1, 0)
+            let gx = -sample(-1, -1) + sample(1, -1) - 2.0 * sample(-1, 0) + 2.0 * sample(1, 0)
                 - sample(-1, 1)
                 + sample(1, 1);
             let gy = -sample(-1, -1) - 2.0 * sample(0, -1) - sample(1, -1)
