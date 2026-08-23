@@ -1,9 +1,7 @@
 use std::collections::VecDeque;
 
-use image::{imageops::FilterType, DynamicImage, GrayImage};
+use image::{DynamicImage, GrayImage};
 use serde::Deserialize;
-
-const DETECTION_MAX_DIMENSION: u32 = 1200;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct Point {
@@ -48,7 +46,7 @@ impl Default for DetectionOptions {
         Self {
             expected_aspect_ratio: Some(85.60 / 53.98),
             min_area_ratio: 0.08,
-            edge_sigma: 0.50,
+            edge_sigma: 0.65,
         }
     }
 }
@@ -57,63 +55,29 @@ pub fn detect_card_quad(
     image: &DynamicImage,
     options: DetectionOptions,
 ) -> Option<DetectionResult> {
-    let working = resize_for_detection(image);
-    let gray = working.to_luma8();
+    let gray = image.to_luma8();
     if gray.width() < 8 || gray.height() < 8 {
         return None;
     }
 
     let blurred = box_blur_3x3(&gray);
-    let (gradient, mean, std_dev) = sobel_gradient(&blurred);
+    let (gradient, threshold) = sobel_gradient(&blurred, options.edge_sigma);
     let max_gradient = gradient.iter().copied().fold(0.0f32, f32::max);
-    if max_gradient <= f32::EPSILON || !mean.is_finite() || !std_dev.is_finite() {
+    if !threshold.is_finite() || threshold <= f32::EPSILON || max_gradient <= f32::EPSILON {
         return None;
     }
 
-    let primary_sigma = options.edge_sigma.max(0.0);
-    let relaxed_sigma = (primary_sigma * 0.65).max(0.25);
-    [primary_sigma, relaxed_sigma]
+    let edges = gradient
+        .iter()
+        .map(|value| *value > 0.0 && *value >= threshold)
+        .collect::<Vec<_>>();
+
+    connected_edge_components(&edges, gray.width(), gray.height())
         .into_iter()
-        .filter_map(|sigma| {
-            let threshold = mean + sigma * std_dev;
-            if !threshold.is_finite() || threshold <= f32::EPSILON {
-                return None;
-            }
-
-            let edges = gradient
-                .iter()
-                .map(|value| *value > 0.0 && *value >= threshold)
-                .collect::<Vec<_>>();
-            let connected = dilate_edges(&edges, gray.width(), gray.height(), 2);
-
-            connected_edge_components(&connected, gray.width(), gray.height())
-                .into_iter()
-                .filter_map(|component| {
-                    candidate_from_component(
-                        &component,
-                        &gradient,
-                        gray.width(),
-                        gray.height(),
-                        options,
-                    )
-                })
-                .max_by(|a, b| a.score.total.total_cmp(&b.score.total))
+        .filter_map(|component| {
+            candidate_from_component(&component, &gradient, gray.width(), gray.height(), options)
         })
         .max_by(|a, b| a.score.total.total_cmp(&b.score.total))
-}
-
-fn resize_for_detection(image: &DynamicImage) -> DynamicImage {
-    let width = image.width();
-    let height = image.height();
-    let longest = width.max(height);
-    if longest <= DETECTION_MAX_DIMENSION {
-        return image.clone();
-    }
-
-    let scale = DETECTION_MAX_DIMENSION as f64 / longest as f64;
-    let resized_width = ((width as f64 * scale).round() as u32).max(1);
-    let resized_height = ((height as f64 * scale).round() as u32).max(1);
-    image.resize(resized_width, resized_height, FilterType::Triangle)
 }
 
 fn box_blur_3x3(input: &GrayImage) -> GrayImage {
@@ -139,7 +103,7 @@ fn box_blur_3x3(input: &GrayImage) -> GrayImage {
     output
 }
 
-fn sobel_gradient(input: &GrayImage) -> (Vec<f32>, f32, f32) {
+fn sobel_gradient(input: &GrayImage, sigma: f32) -> (Vec<f32>, f32) {
     let (width, height) = input.dimensions();
     let mut gradient = vec![0.0; (width * height) as usize];
     let mut sum = 0.0f64;
@@ -169,33 +133,12 @@ fn sobel_gradient(input: &GrayImage) -> (Vec<f32>, f32, f32) {
     }
 
     if count == 0 {
-        return (gradient, f32::INFINITY, f32::INFINITY);
+        return (gradient, f32::INFINITY);
     }
     let mean = (sum / count as f64) as f32;
     let variance = ((sum_sq / count as f64) - (mean as f64 * mean as f64)).max(0.0);
-    (gradient, mean, variance.sqrt() as f32)
-}
-
-fn dilate_edges(edges: &[bool], width: u32, height: u32, radius: i32) -> Vec<bool> {
-    let mut output = vec![false; edges.len()];
-    for y in 0..height {
-        for x in 0..width {
-            let index = (y * width + x) as usize;
-            if !edges[index] {
-                continue;
-            }
-            for dy in -radius..=radius {
-                for dx in -radius..=radius {
-                    let nx = x as i32 + dx;
-                    let ny = y as i32 + dy;
-                    if nx >= 0 && ny >= 0 && nx < width as i32 && ny < height as i32 {
-                        output[(ny as u32 * width + nx as u32) as usize] = true;
-                    }
-                }
-            }
-        }
-    }
-    output
+    let std_dev = variance.sqrt() as f32;
+    (gradient, mean + sigma.max(0.0) * std_dev)
 }
 
 fn connected_edge_components(edges: &[bool], width: u32, height: u32) -> Vec<Vec<(u32, u32)>> {
@@ -232,7 +175,7 @@ fn connected_edge_components(edges: &[bool], width: u32, height: u32) -> Vec<Vec
                     }
                 }
             }
-            if component.len() >= 24 {
+            if component.len() >= 12 {
                 components.push(component);
             }
         }
@@ -263,7 +206,7 @@ fn candidate_from_component(
     let image_area = width as f32 * height as f32;
     let polygon_area = polygon_area_i(&corners);
     let area_ratio = polygon_area / image_area;
-    if area_ratio < options.min_area_ratio.clamp(0.0, 1.0) || area_ratio > 0.90 {
+    if area_ratio < options.min_area_ratio.clamp(0.0, 1.0) {
         return None;
     }
 
@@ -283,9 +226,6 @@ fn candidate_from_component(
     let max_y = corners.iter().map(|point| point.y).max()? as f32;
     let bbox_area = ((max_x - min_x).max(1.0)) * ((max_y - min_y).max(1.0));
     let rectangularity = (polygon_area / bbox_area).clamp(0.0, 1.0);
-    if rectangularity < 0.40 {
-        return None;
-    }
 
     let detected_ratio = card_width / card_height;
     let aspect_score = options
@@ -293,9 +233,6 @@ fn candidate_from_component(
         .filter(|expected| expected.is_finite() && *expected > 0.0)
         .map(|expected| ratio_similarity(detected_ratio, expected))
         .unwrap_or(1.0);
-    if aspect_score < 0.55 {
-        return None;
-    }
 
     let center_x = corners.iter().map(|point| point.x as f32).sum::<f32>() / 4.0;
     let center_y = corners.iter().map(|point| point.y as f32).sum::<f32>() / 4.0;
@@ -304,24 +241,20 @@ fn candidate_from_component(
     let alignment = (1.0 - (dx * dx + dy * dy).sqrt() / 2.0f32.sqrt()).clamp(0.0, 1.0);
 
     let max_gradient = gradient.iter().copied().fold(0.0f32, f32::max).max(1.0);
-    let strong_samples = component
+    let edge_strength = (component
         .iter()
         .map(|&(x, y)| gradient[(y * width + x) as usize])
-        .filter(|value| *value > 0.0)
-        .collect::<Vec<_>>();
-    let edge_strength = if strong_samples.is_empty() {
-        0.0
-    } else {
-        (strong_samples.iter().sum::<f32>() / strong_samples.len() as f32 / max_gradient)
-            .clamp(0.0, 1.0)
-    };
+        .sum::<f32>()
+        / component.len() as f32
+        / max_gradient)
+        .clamp(0.0, 1.0);
 
     let area_score = (area_ratio / 0.65).clamp(0.0, 1.0);
-    let total = 0.25 * area_score
-        + 0.25 * rectangularity
-        + 0.30 * aspect_score
+    let total = 0.30 * area_score
+        + 0.20 * rectangularity
+        + 0.25 * aspect_score
         + 0.10 * alignment
-        + 0.10 * edge_strength;
+        + 0.15 * edge_strength;
 
     Some(DetectionResult {
         quad: Quad {
@@ -497,30 +430,6 @@ mod tests {
         let [first, second, third, fourth] = result.quad.corners;
         assert!(first.y <= second.y || first.y <= fourth.y);
         assert!(polygon_area_normalized([first, second, third, fourth]) > 0.0);
-    }
-
-    #[test]
-    fn detects_rectangle_with_broken_border_contrast() {
-        let mut image = GrayImage::from_pixel(240, 180, Luma([72]));
-        for y in 55..125 {
-            for x in 45..195 {
-                image.put_pixel(x, y, Luma([178]));
-            }
-        }
-        for x in (60..180).step_by(18) {
-            for gap in 0..5 {
-                image.put_pixel(x + gap, 55, Luma([72]));
-                image.put_pixel(x + gap, 124, Luma([72]));
-            }
-        }
-        let result = detect_card_quad(
-            &DynamicImage::ImageLuma8(image),
-            DetectionOptions {
-                expected_aspect_ratio: Some(150.0 / 70.0),
-                ..DetectionOptions::default()
-            },
-        );
-        assert!(result.is_some());
     }
 
     #[test]
