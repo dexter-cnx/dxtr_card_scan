@@ -77,9 +77,11 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final device = _deviceController.text.trim();
+          final hasDevice = device.isNotEmpty;
           final evidence = data.toEvidence(
             source: widget.sourceLabel,
-            device: _deviceController.text.trim(),
+            device: device,
             scenario: _scenario,
             notes: _notesController.text.trim(),
           );
@@ -93,10 +95,11 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
               const SizedBox(height: 16),
               TextField(
                 controller: _deviceController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
                   labelText: 'Device label',
                   hintText: 'e.g. Samsung SM-A165F or iPhone 11',
+                  errorText: hasDevice ? null : 'Device label is required',
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -141,13 +144,19 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
               _QualityCard(title: 'Rectified crop', value: data.cropped),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: evidence));
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Calibration values copied')),
-                  );
-                },
+                onPressed: hasDevice
+                    ? () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: evidence),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Calibration values copied'),
+                          ),
+                        );
+                      }
+                    : null,
                 icon: const Icon(Icons.copy_outlined),
                 label: const Text('Copy calibration values'),
               ),
@@ -225,7 +234,7 @@ class _CalibrationSnapshot {
     required String notes,
   }) =>
       '''source: $source
-device: ${device.isEmpty ? 'unspecified' : device}
+device: $device
 scenario: $scenario
 notes: ${notes.isEmpty ? '-' : notes}
 original.orientationNormalized: true
