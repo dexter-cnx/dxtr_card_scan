@@ -81,8 +81,6 @@ class CardCaptureView extends StatefulWidget {
 
   /// Replaces the package's built-in camera controls while keeping camera
   /// lifecycle, capture and processing package-owned.
-  ///
-  /// When null, [_BuiltInCameraControls] is used.
   final CardCaptureControlsBuilder? controlsBuilder;
 
   final CardCaptureLabels labels;
@@ -115,6 +113,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
   double _zoomAtScaleStart = 1;
   PreparedCardCapture? _prepared;
   CardCaptureImage? _rectified;
+  String? _processingPreviewPath;
   Rect? _lastFrameRect;
   NormalizedRect? _lastRoi;
 
@@ -160,6 +159,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       if (mounted) setState(() => _error = widget.labels.cameraUnavailable);
       return;
     }
+
     _initializing = true;
     CameraController? controller;
     try {
@@ -180,12 +180,14 @@ class _CardCaptureViewState extends State<CardCaptureView>
       final minZoom = await controller.getMinZoomLevel();
       final maxZoom = await controller.getMaxZoomLevel();
       await controller.setFlashMode(FlashMode.off);
+
       if (!mounted ||
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
         await controller.dispose();
         controller = null;
         return;
       }
+
       final readyController = controller;
       setState(() {
         _camera = readyController;
@@ -221,11 +223,21 @@ class _CardCaptureViewState extends State<CardCaptureView>
     setState(() {
       _busy = true;
       _error = null;
+      _processingPreviewPath = null;
     });
+
     try {
       final shot = await camera.takePicture();
+      if (mounted) {
+        setState(() => _processingPreviewPath = shot.path);
+      }
+
       final prepared = await _pipeline.prepare(shot.path);
+      if (mounted) {
+        setState(() => _processingPreviewPath = prepared.normalized.path);
+      }
       await widget.onRawCaptured?.call(prepared.original);
+
       final roi = PreviewGeometry(
         viewportSize: _viewportSize,
         imageSize: Size(
@@ -233,6 +245,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
           prepared.normalized.height.toDouble(),
         ),
       ).viewportRectToNormalizedImage(frameRect);
+
       final rectified = await _pipeline.cropAndRectify(
         normalized: prepared.normalized,
         sourceRoi: roi,
@@ -244,23 +257,42 @@ class _CardCaptureViewState extends State<CardCaptureView>
       _prepared = prepared;
       _lastRoi = roi;
       if (widget.confirmationMode == CaptureConfirmationMode.afterCrop) {
-        setState(() => _rectified = rectified);
+        setState(() {
+          _rectified = rectified;
+          _processingPreviewPath = null;
+        });
       } else {
         await _finish(rectified, roi);
       }
       return shot;
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted) {
+        setState(() {
+          _error = error;
+          _processingPreviewPath = null;
+        });
+      }
       return null;
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          if (_rectified == null) {
+            _processingPreviewPath = null;
+          }
+        });
+      }
     }
   }
 
   Future<void> _finish(CardCaptureImage rectified, NormalizedRect roi) async {
     final prepared = _prepared;
     if (prepared == null) return;
-    setState(() => _busy = true);
+
+    setState(() {
+      _busy = true;
+      _processingPreviewPath ??= prepared.normalized.path;
+    });
     try {
       final processed = await _pipeline.process(
         cropped: rectified,
@@ -274,7 +306,12 @@ class _CardCaptureViewState extends State<CardCaptureView>
           sourceRoi: roi,
         ),
       );
-      if (mounted) setState(() => _rectified = null);
+      if (mounted) {
+        setState(() {
+          _rectified = null;
+          _processingPreviewPath = null;
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
@@ -339,7 +376,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
         image: rectified,
         labels: widget.labels,
         busy: _busy,
-        onRetake: () => setState(() => _rectified = null),
+        onRetake: () => setState(() {
+          _rectified = null;
+          _processingPreviewPath = null;
+        }),
         onConfirm: () {
           final roi = _lastRoi;
           if (roi != null) _finish(rectified, roi);
@@ -364,7 +404,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
             : Orientation.landscape;
         final allowed = widget.orientationPolicy.allows(orientation);
         _captureEnabled = allowed;
-        _captureController.setCaptureEnabled(allowed);
+        _captureController.setCaptureEnabled(allowed && !_busy);
         final frameRect = widget.frame.resolve(_viewportSize);
         _lastFrameRect = frameRect;
         final frameStyle =
@@ -388,16 +428,19 @@ class _CardCaptureViewState extends State<CardCaptureView>
         return Stack(
           fit: StackFit.expand,
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onScaleStart: (_) => _zoomAtScaleStart = _zoom,
-              onScaleUpdate: (details) {
-                if (details.pointerCount >= 2) {
-                  _setZoom(_zoomAtScaleStart * details.scale);
-                }
-              },
-              child: _CoverCameraPreview(controller: camera),
-            ),
+            if (_processingPreviewPath case final path?)
+              _FrozenCapturePreview(path: path)
+            else
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onScaleStart: (_) => _zoomAtScaleStart = _zoom,
+                onScaleUpdate: (details) {
+                  if (details.pointerCount >= 2) {
+                    _setZoom(_zoomAtScaleStart * details.scale);
+                  }
+                },
+                child: _CoverCameraPreview(controller: camera),
+              ),
             if (allowed)
               if (widget.frameBuilder case final builder?)
                 builder(context, frameRect)
@@ -443,11 +486,20 @@ class _CardCaptureViewState extends State<CardCaptureView>
                 ),
               ),
             if (_busy)
-              const Positioned.fill(
+              Positioned.fill(
                 child: IgnorePointer(
                   child: ColoredBox(
-                    color: Color(0x33000000),
-                    child: Center(child: CircularProgressIndicator()),
+                    color: const Color(0x33000000),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 12),
+                          Text(widget.labels.processing),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -651,6 +703,26 @@ class _ConfirmationView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FrozenCapturePreview extends StatelessWidget {
+  const _FrozenCapturePreview({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: ColoredBox(
+        color: Colors.black,
+        child: Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+      ),
     );
   }
 }
