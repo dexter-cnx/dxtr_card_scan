@@ -71,12 +71,15 @@ PR #9 was squash-merged to `main` on 2026-08-23 as `0805c55f5efb4aa513d7647777c7
 - [x] measurement-only Rust ABI + Dart API
 - [x] PR #10 implementation + CI/review
 - [x] Camera/Gallery calibration harness
+- [x] PR #11 calibration harness + EXIF-normalized evidence path
+- [x] define representative physical-device evidence protocol
 - [ ] collect representative physical-device calibration evidence
 - [ ] document candidate readiness thresholds from evidence
 
 PR #10 was squash-merged to `main` on 2026-08-23 as `0cac8fb9f53d7916433108c773fc0d8fc2162907`.
+PR #11 was squash-merged to `main` on 2026-08-23 as `8a1a4d9ac5578442b866ee051eec6b5d3f0d097b`.
 
-Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable.
+Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable. The next implementation gate requires physical-device evidence; do not guess readiness thresholds from synthetic data alone.
 
 ## 0.4 Live detection
 - [ ] throttled analysis
