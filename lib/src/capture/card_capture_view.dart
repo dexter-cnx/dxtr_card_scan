@@ -14,6 +14,7 @@ import 'capture_confirmation_mode.dart';
 import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 import 'card_capture_controls_config.dart';
+import 'card_capture_controls_scope.dart';
 import 'card_capture_image.dart';
 import 'card_capture_pipeline.dart';
 import 'card_capture_result.dart';
@@ -26,6 +27,10 @@ typedef CaptureOrientationMismatchBuilder = Widget Function(
   BuildContext context,
   Orientation currentOrientation,
   CaptureOrientationPolicy policy,
+);
+typedef CardCaptureControlsBuilder = Widget Function(
+  BuildContext context,
+  CardCaptureControlsScope controls,
 );
 typedef CardCaptureImageCallback = Future<void> Function(
   CardCaptureImage image,
@@ -55,6 +60,7 @@ class CardCaptureView extends StatefulWidget {
     ),
     this.confirmationMode = CaptureConfirmationMode.none,
     this.controls = const CardCaptureControlsConfig(),
+    this.controlsBuilder,
     this.labels = const CardCaptureLabels(),
     this.resolutionPreset = ResolutionPreset.max,
     this.onRawCaptured,
@@ -72,6 +78,13 @@ class CardCaptureView extends StatefulWidget {
   final CardScanProcessorOptions processOptions;
   final CaptureConfirmationMode confirmationMode;
   final CardCaptureControlsConfig controls;
+
+  /// Replaces the package's built-in camera controls while keeping camera
+  /// lifecycle, capture and processing package-owned.
+  ///
+  /// When null, [_BuiltInCameraControls] is used.
+  final CardCaptureControlsBuilder? controlsBuilder;
+
   final CardCaptureLabels labels;
   final ResolutionPreset resolutionPreset;
   final CardCaptureImageCallback? onRawCaptured;
@@ -356,6 +369,21 @@ class _CardCaptureViewState extends State<CardCaptureView>
         _lastFrameRect = frameRect;
         final frameStyle =
             widget.frameStyle ?? CardScanTheme.of(context).captureFrameStyle;
+        final controlsScope = CardCaptureControlsScope(
+          controller: _captureController,
+          flashMode: _flashMode,
+          torchEnabled: _torchEnabled,
+          zoom: _zoom,
+          minZoom: _minZoom,
+          maxZoom: _maxZoom,
+          busy: _busy,
+          captureEnabled: allowed,
+          deviceOrientation: camera.value.deviceOrientation,
+          onFlashModeChanged: _setFlash,
+          onTorchPressed: _toggleTorch,
+          onZoomChanged: _setZoom,
+          onClose: widget.onClose,
+        );
 
         return Stack(
           fit: StackFit.expand,
@@ -381,19 +409,22 @@ class _CardCaptureViewState extends State<CardCaptureView>
                 )
             else if (widget.orientationMismatchBuilder case final builder?)
               builder(context, orientation, widget.orientationPolicy),
-            _BuiltInCameraControls(
-              camera: camera,
-              controller: _captureController,
-              config: widget.controls,
-              labels: widget.labels,
-              flashMode: _flashMode,
-              torchEnabled: _torchEnabled,
-              zoom: _zoom,
-              busy: _busy,
-              onClose: widget.onClose,
-              onFlashChanged: _setFlash,
-              onTorchPressed: _toggleTorch,
-            ),
+            if (widget.controlsBuilder case final builder?)
+              builder(context, controlsScope)
+            else
+              _BuiltInCameraControls(
+                camera: camera,
+                controller: _captureController,
+                config: widget.controls,
+                labels: widget.labels,
+                flashMode: _flashMode,
+                torchEnabled: _torchEnabled,
+                zoom: _zoom,
+                busy: _busy,
+                onClose: widget.onClose,
+                onFlashChanged: _setFlash,
+                onTorchPressed: _toggleTorch,
+              ),
             if (_error != null)
               Align(
                 alignment: Alignment.bottomCenter,
