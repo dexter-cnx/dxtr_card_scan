@@ -85,6 +85,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
   ImageCropSelection? _selection;
   CardCaptureImage? _rectified;
   bool _busy = true;
+  bool _selectionTouched = false;
   Object? _error;
   String? _status;
   Timer? _errorTimer;
@@ -113,6 +114,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       _fullPrepareFuture = null;
       _selection = null;
       _rectified = null;
+      _selectionTouched = false;
       _prepare();
     }
   }
@@ -144,11 +146,42 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
     return prepared;
   }
 
+  Future<void> _detectInitialCrop(
+    String sourcePath,
+    CardCaptureImage preview,
+  ) async {
+    if (!widget.autoDetectInitialCrop) return;
+
+    try {
+      final detection = await _pipeline.detect(preview);
+      if (!mounted ||
+          sourcePath != widget.sourcePath ||
+          _selectionTouched ||
+          detection == null ||
+          detection.confidence < widget.minInitialCropConfidence) {
+        return;
+      }
+
+      setState(() {
+        _selection = ImageCropSelection(
+          imagePath: preview.path,
+          normalizedRect: detection.boundingRect(
+            padding: widget.initialCropPadding,
+          ),
+        );
+      });
+    } catch (_) {
+      // Initial detection is optional. Keep the already-visible fallback crop
+      // when native detection is unavailable or fails.
+    }
+  }
+
   Future<void> _prepare() async {
     final sourcePath = widget.sourcePath;
     _errorTimer?.cancel();
     setState(() {
       _busy = true;
+      _selectionTouched = false;
       _status = widget.labels.preparing;
       _error = null;
     });
@@ -157,27 +190,12 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       final preview = await _pipeline.preparePreview(sourcePath);
       if (!mounted || sourcePath != widget.sourcePath) return;
 
-      var initialRect = widget.initialRect;
-      if (widget.autoDetectInitialCrop) {
-        try {
-          final detection = await _pipeline.detect(preview);
-          if (detection != null &&
-              detection.confidence >= widget.minInitialCropConfidence) {
-            initialRect = detection.boundingRect(
-              padding: widget.initialCropPadding,
-            );
-          }
-        } catch (_) {
-          // Initial detection is an enhancement only. Keep the configured
-          // fallback rectangle if native detection is unavailable or fails.
-        }
-      }
-
-      if (!mounted || sourcePath != widget.sourcePath) return;
+      // Render the editable crop immediately with the configured fallback.
+      // Detection and full-resolution preparation continue in the background.
       setState(() {
         _selection = ImageCropSelection(
           imagePath: preview.path,
-          normalizedRect: initialRect,
+          normalizedRect: widget.initialRect,
         );
         _busy = false;
         _status = null;
@@ -186,6 +204,7 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
       final fullPrepare = _prepareFull(sourcePath);
       _fullPrepareFuture = fullPrepare;
       unawaited(fullPrepare.then<void>((_) {}, onError: (_) {}));
+      unawaited(_detectInitialCrop(sourcePath, preview));
     } catch (error) {
       if (mounted && sourcePath == widget.sourcePath) {
         _showError(error);
@@ -354,7 +373,10 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
                       : ImageCropView(
                           imagePath: selection.imagePath,
                           initialRect: selection.normalizedRect,
-                          onChanged: (value) => _selection = value,
+                          onChanged: (value) {
+                            _selectionTouched = true;
+                            _selection = value;
+                          },
                         ),
                 ),
                 if (_error != null)
