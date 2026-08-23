@@ -1,7 +1,7 @@
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:flutter/material.dart';
 
-import 'processed_preview_page.dart';
+import 'quality_calibration_page.dart';
 
 class CameraScanPage extends StatelessWidget {
   const CameraScanPage({super.key});
@@ -37,13 +37,12 @@ class CameraScanPage extends StatelessWidget {
           debugPrint('Rectified crop: ${image.path}');
         },
         onCompleted: (result) async {
-          final bytes = await result.processed.readBytes();
           if (!context.mounted) return;
           await Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => ProcessedPreviewPage(
-                bytes: bytes,
-                title: 'Camera processed output',
+              builder: (_) => QualityCalibrationPage(
+                result: result,
+                sourceLabel: 'Camera',
               ),
             ),
           );
