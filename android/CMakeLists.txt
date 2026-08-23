@@ -41,11 +41,14 @@ add_custom_command(
           "CARGO_TARGET_DIR=${RUST_TARGET_DIR}"
           cargo build --manifest-path "${RUST_MANIFEST}" --target "${RUST_TARGET}" --release
   DEPENDS
+          "${CMAKE_CURRENT_LIST_DIR}/../rust/src/contrast_region.rs"
+          "${CMAKE_CURRENT_LIST_DIR}/../rust/src/detection.rs"
           "${CMAKE_CURRENT_LIST_DIR}/../rust/src/ffi.rs"
           "${CMAKE_CURRENT_LIST_DIR}/../rust/src/lib.rs"
           "${CMAKE_CURRENT_LIST_DIR}/../rust/src/model.rs"
           "${CMAKE_CURRENT_LIST_DIR}/../rust/src/processor.rs"
-          "${CMAKE_CURRENT_LIST_DIR}/../rust/src/detection.rs"
+          "${CMAKE_CURRENT_LIST_DIR}/../rust/src/quality.rs"
+          "${CMAKE_CURRENT_LIST_DIR}/../rust/src/quality_ffi.rs"
           "${CMAKE_CURRENT_LIST_DIR}/../rust/src/warp.rs"
           "${RUST_MANIFEST}"
   WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/.."
