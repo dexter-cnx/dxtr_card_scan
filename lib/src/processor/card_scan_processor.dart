@@ -82,7 +82,8 @@ class CardScanProcessor {
       throw ArgumentError('input image must not be empty');
     }
 
-    final optionsBytes = Uint8List.fromList(utf8.encode(options.toJsonString()));
+    final optionsBytes =
+        Uint8List.fromList(utf8.encode(options.toJsonString()));
     final inputPtr = calloc<Uint8>(input.length);
     final optionsPtr = calloc<Uint8>(optionsBytes.length);
     try {

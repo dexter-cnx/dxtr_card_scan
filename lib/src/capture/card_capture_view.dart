@@ -622,9 +622,8 @@ class _BuiltInCameraControls extends StatelessWidget {
                   bottom: landscape ? 0 : 24,
                 ),
                 child: SizedBox.square(
-                  dimension: CardScanTheme.of(context)
-                      .cameraControlsStyle
-                      .shutterSize,
+                  dimension:
+                      CardScanTheme.of(context).cameraControlsStyle.shutterSize,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       shape: CardScanTheme.of(context)

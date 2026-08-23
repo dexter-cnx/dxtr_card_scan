@@ -38,18 +38,10 @@ class CardScanDetection {
       quad.bottomRight,
       quad.bottomLeft,
     ];
-    final minX = points
-        .map((point) => point.x)
-        .reduce((a, b) => a < b ? a : b);
-    final maxX = points
-        .map((point) => point.x)
-        .reduce((a, b) => a > b ? a : b);
-    final minY = points
-        .map((point) => point.y)
-        .reduce((a, b) => a < b ? a : b);
-    final maxY = points
-        .map((point) => point.y)
-        .reduce((a, b) => a > b ? a : b);
+    final minX = points.map((point) => point.x).reduce((a, b) => a < b ? a : b);
+    final maxX = points.map((point) => point.x).reduce((a, b) => a > b ? a : b);
+    final minY = points.map((point) => point.y).reduce((a, b) => a < b ? a : b);
+    final maxY = points.map((point) => point.y).reduce((a, b) => a > b ? a : b);
 
     return NormalizedRect(
       left: (minX - padding).clamp(0.0, 1.0).toDouble(),
@@ -61,8 +53,8 @@ class CardScanDetection {
 
   factory CardScanDetection.fromJson(Map<String, Object?> json) {
     final quadJson = json['quad']! as Map<String, Object?>;
-    final corners = (quadJson['corners']! as List<Object?>)
-        .cast<Map<String, Object?>>();
+    final corners =
+        (quadJson['corners']! as List<Object?>).cast<Map<String, Object?>>();
     if (corners.length != 4) {
       throw const FormatException('card detection must contain four corners');
     }

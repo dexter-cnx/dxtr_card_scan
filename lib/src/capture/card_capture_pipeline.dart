@@ -80,12 +80,14 @@ class CardCapturePipeline {
           ? image_lib.copyResize(
               normalized,
               width: (normalized.width * scale).round().clamp(1, maxDimension),
-              height: (normalized.height * scale).round().clamp(1, maxDimension),
+              height:
+                  (normalized.height * scale).round().clamp(1, maxDimension),
               interpolation: image_lib.Interpolation.linear,
             )
           : normalized;
 
-      final directory = Directory.systemTemp.createTempSync('dxtr_card_scan_preview_');
+      final directory =
+          Directory.systemTemp.createTempSync('dxtr_card_scan_preview_');
       final previewPath = '${directory.path}/preview.jpg';
       File(previewPath).writeAsBytesSync(
         image_lib.encodeJpg(preview, quality: 86),
@@ -148,9 +150,8 @@ class CardCapturePipeline {
         ),
       );
       return bytes.then((output) {
-        final extension = options.outputFormat == ProcessorOutputFormat.png
-            ? 'png'
-            : 'jpg';
+        final extension =
+            options.outputFormat == ProcessorOutputFormat.png ? 'png' : 'jpg';
         final path = '${File(cropped.path).parent.path}/processed.$extension';
         File(path).writeAsBytesSync(output, flush: true);
         return _describeImage(path, output);

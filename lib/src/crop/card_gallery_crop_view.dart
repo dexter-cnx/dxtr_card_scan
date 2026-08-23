@@ -325,7 +325,8 @@ class _CardGalleryCropViewState extends State<CardGalleryCropView> {
               children: [
                 Expanded(
                   child: Center(
-                    child: Image.file(File(rectified.path), fit: BoxFit.contain),
+                    child:
+                        Image.file(File(rectified.path), fit: BoxFit.contain),
                   ),
                 ),
                 SafeArea(
