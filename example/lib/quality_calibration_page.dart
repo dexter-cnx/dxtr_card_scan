@@ -25,8 +25,12 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
     final originalPath = widget.result.original.path;
     final croppedPath = widget.result.cropped.path;
     return Isolate.run(() async {
+      final pipeline = CardCapturePipeline();
+      final prepared = await pipeline.prepare(originalPath);
       final processor = CardScanProcessor();
-      final original = await processor.analyzeQualityFile(originalPath);
+      final original = await processor.analyzeQualityFile(
+        prepared.normalized.path,
+      );
       final cropped = await processor.analyzeQualityFile(croppedPath);
       return _CalibrationSnapshot(original: original, cropped: cropped);
     });
@@ -61,7 +65,10 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              _QualityCard(title: 'Original capture', value: data.original),
+              _QualityCard(
+                title: 'Original capture (orientation-normalized)',
+                value: data.original,
+              ),
               const SizedBox(height: 12),
               _QualityCard(title: 'Rectified crop', value: data.cropped),
               const SizedBox(height: 16),
@@ -144,6 +151,7 @@ class _CalibrationSnapshot {
   final CardScanQualityAnalysis cropped;
 
   String toEvidence(String source) => '''source: $source
+original.orientationNormalized: true
 original.blur.score: ${original.blur.score.toStringAsFixed(4)}
 original.blur.laplacianVariance: ${original.blur.laplacianVariance.toStringAsFixed(4)}
 original.exposure.score: ${original.exposure.score.toStringAsFixed(4)}
