@@ -26,7 +26,8 @@ class CardGalleryCaptureView extends StatefulWidget {
     ),
     this.autoDetectInitialCrop = true,
     this.initialCropPadding = .02,
-    this.minInitialCropConfidence = .70,
+    this.minInitialCropConfidence = .60,
+    this.errorDisplayDuration = const Duration(seconds: 5),
     this.confirmationMode = CaptureConfirmationMode.afterCrop,
     this.labels = const GalleryCropLabels(),
     this.pickImagePath,
@@ -35,12 +36,14 @@ class CardGalleryCaptureView extends StatefulWidget {
     this.onClose,
     super.key,
   })  : assert(initialCropPadding >= 0 && initialCropPadding < .5),
-        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1);
+        assert(minInitialCropConfidence >= 0 && minInitialCropConfidence <= 1),
+        assert(!errorDisplayDuration.isNegative);
 
   final CardScanProcessorOptions processOptions;
   final bool autoDetectInitialCrop;
   final double initialCropPadding;
   final double minInitialCropConfidence;
+  final Duration errorDisplayDuration;
   final CaptureConfirmationMode confirmationMode;
   final GalleryCropLabels labels;
   final GalleryImagePathPicker? pickImagePath;
@@ -107,6 +110,7 @@ class _CardGalleryCaptureViewState extends State<CardGalleryCaptureView> {
         autoDetectInitialCrop: widget.autoDetectInitialCrop,
         initialCropPadding: widget.initialCropPadding,
         minInitialCropConfidence: widget.minInitialCropConfidence,
+        errorDisplayDuration: widget.errorDisplayDuration,
         confirmationMode: widget.confirmationMode,
         labels: widget.labels,
         onOriginalReady: widget.onOriginalReady,
