@@ -19,7 +19,21 @@ class QualityCalibrationPage extends StatefulWidget {
 }
 
 class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
+  static const _scenarios = <String>[
+    'good',
+    'blur',
+    'dark',
+    'bright',
+    'small-card',
+    'perspective',
+    'busy-background',
+    'other',
+  ];
+
   late final Future<_CalibrationSnapshot> _snapshot = _analyze();
+  final TextEditingController _deviceController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
+  String _scenario = _scenarios.first;
 
   Future<_CalibrationSnapshot> _analyze() async {
     final originalPath = widget.result.original.path;
@@ -34,6 +48,13 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
       final cropped = await processor.analyzeQualityFile(croppedPath);
       return _CalibrationSnapshot(original: original, cropped: cropped);
     });
+  }
+
+  @override
+  void dispose() {
+    _deviceController.dispose();
+    _notesController.dispose();
+    super.dispose();
   }
 
   @override
@@ -56,13 +77,63 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final evidence = data.toEvidence(widget.sourceLabel);
+          final device = _deviceController.text.trim();
+          final hasDevice = device.isNotEmpty;
+          final evidence = data.toEvidence(
+            source: widget.sourceLabel,
+            device: device,
+            scenario: _scenario,
+            notes: _notesController.text.trim(),
+          );
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               const Text(
                 'Measurement only — no pass/fail threshold is applied.',
                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _deviceController,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: 'Device label',
+                  hintText: 'e.g. Samsung SM-A165F or iPhone 11',
+                  errorText: hasDevice ? null : 'Device label is required',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _scenario,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Scenario',
+                ),
+                items: _scenarios
+                    .map(
+                      (scenario) => DropdownMenuItem<String>(
+                        value: scenario,
+                        child: Text(scenario),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null || value == _scenario) return;
+                  setState(() => _scenario = value);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Notes',
+                  hintText: 'Optional capture conditions',
+                ),
+                minLines: 2,
+                maxLines: 4,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
               _QualityCard(
@@ -73,13 +144,19 @@ class _QualityCalibrationPageState extends State<QualityCalibrationPage> {
               _QualityCard(title: 'Rectified crop', value: data.cropped),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: evidence));
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Calibration values copied')),
-                  );
-                },
+                onPressed: hasDevice
+                    ? () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: evidence),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Calibration values copied'),
+                          ),
+                        );
+                      }
+                    : null,
                 icon: const Icon(Icons.copy_outlined),
                 label: const Text('Copy calibration values'),
               ),
@@ -150,7 +227,16 @@ class _CalibrationSnapshot {
   final CardScanQualityAnalysis original;
   final CardScanQualityAnalysis cropped;
 
-  String toEvidence(String source) => '''source: $source
+  String toEvidence({
+    required String source,
+    required String device,
+    required String scenario,
+    required String notes,
+  }) =>
+      '''source: $source
+device: $device
+scenario: $scenario
+notes: ${notes.isEmpty ? '-' : notes}
 original.orientationNormalized: true
 original.blur.score: ${original.blur.score.toStringAsFixed(4)}
 original.blur.laplacianVariance: ${original.blur.laplacianVariance.toStringAsFixed(4)}
