@@ -178,6 +178,7 @@ class _EvidenceHomePageState extends State<EvidenceHomePage> {
           if (_sessions.isNotEmpty) ...[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: ValueKey<String?>(session?.id),
               initialValue: session?.id,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
