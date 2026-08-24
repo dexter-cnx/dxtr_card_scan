@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:cross_file/cross_file.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:path/path.dart' as p;
@@ -122,8 +123,8 @@ class EvidenceStore {
     await File(result.cropped.path).copy(p.join(sampleDir.path, croppedName));
     await File(result.processed.path).copy(p.join(sampleDir.path, processedName));
 
-    const processor = CardScanProcessor();
-    final pipeline = const CardCapturePipeline();
+    final processor = CardScanProcessor();
+    const pipeline = CardCapturePipeline();
     final prepared = await pipeline.prepare(result.original.path);
     final originalQuality = await processor.analyzeQualityFile(
       prepared.normalized.path,
