@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
-import 'package:cross_file/cross_file.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
 import 'package:path/path.dart' as p;
@@ -115,70 +115,97 @@ class EvidenceStore {
     final sampleDir = Directory(p.join(sessionDir.path, 'samples', sampleId));
     await sampleDir.create(recursive: true);
 
-    final originalName = 'original${_extension(result.original.path)}';
-    final croppedName = 'cropped${_extension(result.cropped.path)}';
-    final processedName = 'processed${_extension(result.processed.path)}';
+    try {
+      final originalName = 'original${_extension(result.original.path)}';
+      final croppedName = 'cropped${_extension(result.cropped.path)}';
+      final processedName = 'processed${_extension(result.processed.path)}';
 
-    await File(result.original.path).copy(p.join(sampleDir.path, originalName));
-    await File(result.cropped.path).copy(p.join(sampleDir.path, croppedName));
-    await File(result.processed.path).copy(p.join(sampleDir.path, processedName));
+      await File(result.original.path).copy(p.join(sampleDir.path, originalName));
+      await File(result.cropped.path).copy(p.join(sampleDir.path, croppedName));
+      await File(result.processed.path).copy(p.join(sampleDir.path, processedName));
 
-    final processor = CardScanProcessor();
-    const pipeline = CardCapturePipeline();
-    final prepared = await pipeline.prepare(result.original.path);
-    final originalQuality = await processor.analyzeQualityFile(
-      prepared.normalized.path,
-    );
-    final croppedQuality = await processor.analyzeQualityFile(
-      result.cropped.path,
-    );
+      final quality = await _analyzeQualityOffUiIsolate(
+        originalPath: result.original.path,
+        croppedPath: result.cropped.path,
+      );
 
-    final metadata = <String, Object?>{
-      'schemaVersion': 1,
-      'protocol': 'v0.3-quality-evidence',
-      'sampleId': sampleId,
-      'sessionId': session.id,
-      'deviceLabel': session.deviceLabel,
-      'deviceMetadata': session.deviceMetadata,
-      'source': 'Camera',
-      'scenario': scenario.id,
-      'scenarioGuide': scenario.guide,
-      'notes': notes,
-      'capturedAt': DateTime.now().toUtc().toIso8601String(),
-      'sourceRoi': <String, Object?>{
-        'left': result.sourceRoi.left,
-        'top': result.sourceRoi.top,
-        'right': result.sourceRoi.right,
-        'bottom': result.sourceRoi.bottom,
-      },
-      'files': <String, String>{
-        'original': originalName,
-        'cropped': croppedName,
-        'processed': processedName,
-      },
-      'original': _qualityToJson(originalQuality, orientationNormalized: true),
-      'cropped': _qualityToJson(croppedQuality, orientationNormalized: false),
-    };
-    final metadataFile = File(p.join(sampleDir.path, 'metadata.json'));
-    await metadataFile.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(metadata),
-      flush: true,
-    );
+      final metadata = <String, Object?>{
+        'schemaVersion': 1,
+        'protocol': 'v0.3-quality-evidence',
+        'sampleId': sampleId,
+        'sessionId': session.id,
+        'deviceLabel': session.deviceLabel,
+        'deviceMetadata': session.deviceMetadata,
+        'source': 'Camera',
+        'scenario': scenario.id,
+        'scenarioGuide': scenario.guide,
+        'notes': notes,
+        'capturedAt': DateTime.now().toUtc().toIso8601String(),
+        'sourceRoi': <String, Object?>{
+          'left': result.sourceRoi.left,
+          'top': result.sourceRoi.top,
+          'right': result.sourceRoi.right,
+          'bottom': result.sourceRoi.bottom,
+        },
+        'files': <String, String>{
+          'original': originalName,
+          'cropped': croppedName,
+          'processed': processedName,
+        },
+        'original': quality['original'],
+        'cropped': quality['cropped'],
+      };
+      final metadataFile = File(p.join(sampleDir.path, 'metadata.json'));
+      await metadataFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(metadata),
+        flush: true,
+      );
 
-    final record = EvidenceSampleRecord(
-      id: sampleId,
-      scenario: scenario.id,
-      createdAt: DateTime.now(),
-      originalFile: 'samples/$sampleId/$originalName',
-      croppedFile: 'samples/$sampleId/$croppedName',
-      processedFile: 'samples/$sampleId/$processedName',
-      metadataFile: 'samples/$sampleId/metadata.json',
-    );
-    final updated = session.copyWith(
-      samples: <EvidenceSampleRecord>[...session.samples, record],
-    );
-    await _writeSession(updated);
-    return updated;
+      final record = EvidenceSampleRecord(
+        id: sampleId,
+        scenario: scenario.id,
+        createdAt: DateTime.now(),
+        originalFile: 'samples/$sampleId/$originalName',
+        croppedFile: 'samples/$sampleId/$croppedName',
+        processedFile: 'samples/$sampleId/$processedName',
+        metadataFile: 'samples/$sampleId/metadata.json',
+      );
+      final updated = session.copyWith(
+        samples: <EvidenceSampleRecord>[...session.samples, record],
+      );
+      await _writeSession(updated);
+      return updated;
+    } catch (_) {
+      if (await sampleDir.exists()) {
+        await sampleDir.delete(recursive: true);
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, Object?>> _analyzeQualityOffUiIsolate({
+    required String originalPath,
+    required String croppedPath,
+  }) {
+    return Isolate.run(() async {
+      const pipeline = CardCapturePipeline();
+      final prepared = await pipeline.prepare(originalPath);
+      final processor = CardScanProcessor();
+      final originalQuality = await processor.analyzeQualityFile(
+        prepared.normalized.path,
+      );
+      final croppedQuality = await processor.analyzeQualityFile(croppedPath);
+      return <String, Object?>{
+        'original': _qualityToJsonStatic(
+          originalQuality,
+          orientationNormalized: true,
+        ),
+        'cropped': _qualityToJsonStatic(
+          croppedQuality,
+          orientationNormalized: false,
+        ),
+      };
+    });
   }
 
   Future<File> exportZip(EvidenceSession session) async {
@@ -219,10 +246,14 @@ class EvidenceStore {
 
   Future<void> _writeSession(EvidenceSession session) async {
     final dir = await _sessionDirectory(session.id);
-    await File(p.join(dir.path, 'session.json')).writeAsString(
+    final manifest = File(p.join(dir.path, 'session.json'));
+    final temporaryManifest = File(p.join(dir.path, '.session.json.tmp'));
+    await temporaryManifest.writeAsString(
       session.toPrettyJson(),
       flush: true,
     );
+    await temporaryManifest.rename(manifest.path);
+
     await File(p.join(dir.path, 'README.txt')).writeAsString(
       _sessionReadme(session),
       flush: true,
@@ -248,26 +279,6 @@ Each sample folder contains:
 Do not use this dataset as a pass/fail threshold by itself. It is raw calibration evidence.
 ''';
 
-  Map<String, Object?> _qualityToJson(
-    CardScanQualityAnalysis quality, {
-    required bool orientationNormalized,
-  }) =>
-      <String, Object?>{
-        'orientationNormalized': orientationNormalized,
-        'blur': <String, double>{
-          'score': quality.blur.score,
-          'laplacianVariance': quality.blur.laplacianVariance,
-        },
-        'exposure': <String, double>{
-          'score': quality.exposure.score,
-          'meanLuma': quality.exposure.meanLuma,
-          'darkFraction': quality.exposure.darkFraction,
-          'brightFraction': quality.exposure.brightFraction,
-        },
-        'cardCoverage': quality.cardCoverage,
-        'detectionConfidence': quality.detectionConfidence,
-      };
-
   String _extension(String path) {
     final extension = p.extension(path).toLowerCase();
     return extension.isEmpty ? '.jpg' : extension;
@@ -285,3 +296,23 @@ Do not use this dataset as a pass/fail threshold by itself. It is raw calibratio
       .replaceAll(RegExp(r'[^a-z0-9_-]+'), '_')
       .replaceAll(RegExp('_+'), '_');
 }
+
+Map<String, Object?> _qualityToJsonStatic(
+  CardScanQualityAnalysis quality, {
+  required bool orientationNormalized,
+}) =>
+    <String, Object?>{
+      'orientationNormalized': orientationNormalized,
+      'blur': <String, double>{
+        'score': quality.blur.score,
+        'laplacianVariance': quality.blur.laplacianVariance,
+      },
+      'exposure': <String, double>{
+        'score': quality.exposure.score,
+        'meanLuma': quality.exposure.meanLuma,
+        'darkFraction': quality.exposure.darkFraction,
+        'brightFraction': quality.exposure.brightFraction,
+      },
+      'cardCoverage': quality.cardCoverage,
+      'detectionConfidence': quality.detectionConfidence,
+    };
