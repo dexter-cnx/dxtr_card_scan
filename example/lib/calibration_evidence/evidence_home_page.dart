@@ -178,7 +178,7 @@ class _EvidenceHomePageState extends State<EvidenceHomePage> {
           if (_sessions.isNotEmpty) ...[
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: session?.id,
+              initialValue: session?.id,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: 'Saved sessions',
@@ -254,16 +254,21 @@ class _SessionSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = session.samples.length / session.requiredSampleCount;
+    final progress = (session.samples.length / session.requiredSampleCount)
+        .clamp(0.0, 1.0)
+        .toDouble();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(session.deviceLabel, style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              session.deviceLabel,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
-            LinearProgressIndicator(value: progress.clamp(0, 1)),
+            LinearProgressIndicator(value: progress),
             const SizedBox(height: 8),
             Text(
               '${session.samples.length}/${session.requiredSampleCount} samples — ${session.isComplete ? 'complete' : 'in progress'}',
@@ -312,7 +317,9 @@ class _ScenarioCard extends StatelessWidget {
                   FilledButton.tonalIcon(
                     onPressed: onCapture,
                     icon: Icon(onCapture == null ? Icons.check : Icons.camera_alt),
-                    label: Text(onCapture == null ? 'Completed' : 'Capture sample'),
+                    label: Text(
+                      onCapture == null ? 'Completed' : 'Capture sample',
+                    ),
                   ),
                 ],
               ),
