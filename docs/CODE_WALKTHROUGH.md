@@ -24,6 +24,36 @@ Public outputs:
 
 A viewport rectangle that lies completely outside a `BoxFit.contain` preview is rejected rather than silently mapping letterbox padding into the sensor. Partial overlap is clipped to the visible preview. SC-03/SC-04 must consume this mapper so live quality analysis and final capture ROI use one geometry contract.
 
+## Smart Capture quality and stability
+
+### `lib/src/processor/card_scan_quality_analysis.dart`
+
+SC-01 interprets deterministic Rust quality measurements without triggering capture. `CardCaptureQualityAssessment` combines blur, exposure, card coverage and detector confidence into advisory issues and a conservative score. Exposure uses both mean luminance and clipping fractions; card-size guidance is emitted only when detection is trustworthy.
+
+### `lib/src/capture/card_capture_stability_tracker.dart`
+
+SC-03 adds a deterministic temporal layer over per-frame quality plus `CardScanDetection` quad geometry.
+
+`CardCaptureStabilityConfig` controls:
+- `requiredStableFrames`
+- minimum sharpness
+- minimum detection confidence
+- maximum normalized corresponding-corner displacement
+- maximum card-coverage delta
+
+`CardCaptureStabilityTracker.addSample()` accepts one quality assessment and its optional detection. Blur, missing detection or low-confidence detection reset the streak to zero. Excessive movement or coverage drift resets the streak to one because the current valid frame becomes the next baseline. Accepted adjacent frames increment the streak.
+
+`CardCaptureStabilitySnapshot` exposes:
+- stable frame count
+- required frame count
+- progress
+- max corner displacement
+- coverage delta
+- blocking stability issue
+- `isStable`
+
+This class intentionally does not own a `CameraController`, image streaming, throttling, cooldown or shutter invocation. SC-04 will compose those concerns around the deterministic quality/geometry/stability primitives.
+
 ## Rust processing
 
 ### `rust/src/model.rs`
@@ -105,78 +135,16 @@ The final result keeps all useful stages:
 - frame rendering and orientation policy
 - image capture
 - background EXIF normalization
-- `CaptureFrame` -> `PreviewGeometry` -> normalized source ROI mapping
+- `CaptureFrame` -> geometry mapping -> normalized source ROI
 - native auto-detection/perspective rectification
 - optional post-rectification confirmation
 - final processing
 
-The host only supplies configuration and result presentation:
-- `CaptureFrame`
-- `CardScanProcessorOptions`
-- `CaptureConfirmationMode`
-- `CardCaptureControlsConfig`
-- `CardCaptureLabels`
-- theme/frame overrides
-- `onRawCaptured`, `onCropReady`, `onCompleted`
-
-`CardCaptureController` remains an escape hatch for programmatic shutter triggering without transferring camera ownership back to the host.
+The host only supplies configuration and result presentation. `CardCaptureController` remains an escape hatch for programmatic shutter triggering without transferring camera ownership back to the host.
 
 ## High-level Gallery surfaces
 
-### `lib/src/crop/card_gallery_capture_view.dart`
-`CardGalleryCaptureView` owns the default Gallery flow including source selection:
-- Android/iOS: `image_picker`
-- macOS: `file_selector`
-- optional `pickImagePath` override for custom host pickers
-
-After selection it delegates to `CardGalleryCropView`.
-
-### `lib/src/crop/card_gallery_crop_view.dart`
-`CardGalleryCropView` owns:
-1. EXIF normalization
-2. normalized temporary source
-3. `ImageCropView`
-4. manual normalized ROI
-5. Rust auto-detect + perspective rectification
-6. optional confirmation
-7. final processing
-8. staged callbacks/final result
-
-This lower high-level surface is useful when an application already has an image path but still wants the package to own crop/process behavior.
-
-## Customizable user-visible text
-
-### `lib/src/ui/card_scan_labels.dart`
-Package behavior never requires the Example to fork widgets merely to localize wording.
-
-`CardCaptureLabels` configures Camera/confirmation text such as:
-- Close/Back tooltip
-- Flash off/auto/on
-- Torch
-- processing/error text
-- confirmation title/action
-- Retake
-
-`GalleryCropLabels` configures:
-- page title
-- picker empty state/action
-- crop instruction
-- preparation/processing text
-- Scan action
-- confirmation/retry actions
-- error prefix
-
-Host applications can therefore use their own localization system while keeping Camera/Gallery behavior package-owned.
-
-## Example structure after PR #9
-
-The integrated Example demonstrates the public high-level API rather than duplicating package internals.
-
-- `camera_scan_page.dart` configures frame, processor options, labels, confirmation mode and result preview only.
-- `gallery_scan_page.dart` configures processor options, labels, confirmation mode and result preview only.
-- Example no longer owns CameraController lifecycle, ROI mapping, native FFI execution, Gallery crop state, or default Gallery picker behavior.
-
-The old helper/demo files may remain temporarily for validation/reference but are no longer part of the default integrated flow.
+`CardGalleryCaptureView` owns the default Gallery source selection. Android/iOS use `image_picker`; macOS uses `file_selector`; hosts can override the picker. `CardGalleryCropView` owns EXIF normalization, crop, Rust detection/rectification, optional confirmation and final processing.
 
 ## Native packaging
 
@@ -184,7 +152,7 @@ The old helper/demo files may remain temporarily for validation/reference but ar
 `android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and links the Rust staticlib into `libdxtr_card_scan_processor.so`.
 
 ### iOS / macOS
-The podspecs run the Rust build before compile, declare the generated archive as an Xcode output and force-load it in the plugin Pod target. The host Runner links the plugin product rather than referencing a not-yet-generated archive directly.
+The podspecs run the Rust build before compile, declare the generated archive as an Xcode output and force-load it in the plugin Pod target.
 
 ## Validation tooling
 
@@ -201,4 +169,5 @@ Generated build state such as `android/.cxx/`, generated example platform hosts,
 - v0.2 is complete and merged.
 - SC-00 unified Camera/Gallery entry is merged.
 - SC-01 advisory live-quality assessment model is merged.
-- SC-02 introduces the public frame-to-sensor geometry contract used by later live analysis and auto-capture work.
+- SC-02 frame-to-sensor geometry is merged.
+- SC-03 blur + temporal stability implementation is in progress; it remains independent from camera streaming and auto-capture.
