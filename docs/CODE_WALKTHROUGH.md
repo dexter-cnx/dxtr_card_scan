@@ -56,14 +56,30 @@ The adapter intentionally does not rotate or mirror the stream frame. Preview-to
 
 `CardLiveCameraSession` owns `CameraController.startImageStream()` and the backpressure boundary before expensive work begins. It:
 - interval-gates frames before copying camera planes
-- allows only one conversion/analysis operation in flight
-- invalidates stale in-flight results across stop/restart generations
+- allows only one conversion/analysis operation in flight, including across stop/restart generations
+- invalidates stale in-flight result delivery
 - resets coordinator stability/policy state when streaming stops
 - reports non-fatal stream/analysis failures through an optional error callback
 - requires an explicit `CardLiveFrameRoiResolver`, so orientation/mirroring/zoom mapping is never guessed inside the stream layer
 
+### CardCaptureView live integration — `card_capture_view.dart`
+
+`CardCaptureView` now owns the SC-04 live session lifecycle. The opt-in `liveStreamTransformResolver` supplies a `CapturedImageTransform` for the active `CameraDescription` and `DeviceOrientation`. Returning `null` skips that state, which is the required behavior for unvalidated orientation/mirroring combinations.
+
+For each accepted stream frame the view uses its current viewport size and resolved capture-frame rectangle with `CameraGeometryMapper`, using the raw `CameraImage` dimensions as sensor/image size. The resulting raw-frame ROI feeds `CardLiveCameraSession`.
+
+The still-capture lifecycle is exclusive:
+1. set capture busy;
+2. stop the live image stream;
+3. call `takePicture()`;
+4. keep streaming stopped through prepare/crop/rectify/process;
+5. keep streaming stopped while after-crop confirmation is visible;
+6. restart only when the camera surface becomes active again, such as retake or a completed/error path.
+
+Zoomed live analysis currently returns no ROI. This is deliberate: platform preview-to-stream digital crop behavior is not promoted into production geometry until physical calibration evidence exists. Manual/final still capture zoom behavior remains unchanged.
+
 This keeps four responsibilities separate:
-1. `CardCaptureView` owns camera lifecycle, viewport geometry and capture UI.
+1. `CardCaptureView` owns camera lifecycle, viewport geometry, session orchestration and capture UI.
 2. `CardLiveCameraSession` owns stream lifecycle/backpressure.
 3. `CardCameraImageAdapter` owns raw-plane conversion and ROI encoding.
 4. `CardLiveFrameAnalyzer` owns worker-isolate Rust analysis.
@@ -74,9 +90,9 @@ The Rust processor owns deterministic image processing and exposes C ABI entry p
 
 ## Package-owned capture
 
-`CardCaptureView` owns camera lifecycle, preview, controls, capture, EXIF normalization, ROI mapping, rectification, confirmation and final processing. `CardGalleryCaptureView`/`CardGalleryCropView` own Gallery flows.
+`CardCaptureView` owns camera lifecycle, preview, controls, capture, EXIF normalization, ROI mapping, rectification, confirmation, final processing and optional SC-04 live orchestration. `CardGalleryCaptureView`/`CardGalleryCropView` own Gallery flows.
 
-The next increment wires `CardLiveCameraSession` into `CardCaptureView`: the view resolves the capture-frame ROI through SC-02, pauses/stops streaming around still capture/processing/confirmation, and attaches the package shutter delegate to `CardLiveCaptureCoordinator`.
+Auto capture remains disabled by default. Live analysis itself is also opt-in because no stream starts without `liveStreamTransformResolver`.
 
 ## Validation tooling
 
@@ -89,4 +105,5 @@ CI covers Flutter analyze/tests, Example analyze/build and Rust format/Clippy/te
 - SC-04 live coordinator merged via PR #19.
 - SC-04 raw CameraImage adapter merged via PR #20.
 - SC-04 worker-isolate frame analysis merged via PR #21.
-- Current increment adds the live camera stream session/backpressure boundary; `CardCaptureView` integration remains next.
+- SC-04 live camera stream session merged via PR #22.
+- Current increment wires the session into `CardCaptureView`; remaining SC-04 items are physical geometry/orientation and end-to-end auto-capture evidence.
