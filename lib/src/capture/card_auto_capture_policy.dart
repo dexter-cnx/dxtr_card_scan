@@ -49,7 +49,8 @@ class CardAutoCaptureDecision {
 /// Pure state machine that combines SC-01 quality and SC-03 stability.
 ///
 /// The policy never invokes a camera controller itself. Hosts/package camera
-/// integration may act on [CardAutoCaptureDecision.shouldCapture].
+/// integration may act on [CardAutoCaptureDecision.shouldCapture] and call
+/// [markCaptureDispatched] only when a shutter dispatch actually starts.
 class CardAutoCapturePolicy {
   CardAutoCapturePolicy({
     this.config = const CardAutoCaptureConfig(),
@@ -68,6 +69,13 @@ class CardAutoCapturePolicy {
 
   void reset() {
     _cooldownUntil = null;
+  }
+
+  /// Commits cooldown for an auto-capture decision that is actually being
+  /// dispatched to the shutter path.
+  void markCaptureDispatched() {
+    if (!config.enabled || config.cooldown <= Duration.zero) return;
+    _cooldownUntil = _clock().add(config.cooldown);
   }
 
   CardAutoCaptureDecision evaluate({
@@ -110,14 +118,9 @@ class CardAutoCapturePolicy {
       );
     }
 
-    final shouldCapture = config.enabled;
-    if (shouldCapture && config.cooldown > Duration.zero) {
-      _cooldownUntil = now.add(config.cooldown);
-    }
-
     return CardAutoCaptureDecision(
       state: CardAutoCaptureState.ready,
-      shouldCapture: shouldCapture,
+      shouldCapture: config.enabled,
       quality: quality,
       stability: stability,
     );
