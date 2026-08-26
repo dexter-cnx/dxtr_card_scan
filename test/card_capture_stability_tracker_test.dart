@@ -27,6 +27,28 @@ void main() {
     expect(third.progress, 1);
   });
 
+  test('cyclic quad corner shifts do not reset a stable streak', () {
+    final tracker = CardCaptureStabilityTracker(
+      config: const CardCaptureStabilityConfig(
+        requiredStableFrames: 2,
+        maximumCornerDisplacement: .01,
+      ),
+    );
+
+    tracker.addSample(
+      assessment: _assessment(),
+      detection: _detection(),
+    );
+    final shifted = tracker.addSample(
+      assessment: _assessment(cardCoverage: .401),
+      detection: _detection(offset: .003, cyclicShift: 1),
+    );
+
+    expect(shifted.issue, isNull);
+    expect(shifted.isStable, isTrue);
+    expect(shifted.maxCornerDisplacement, lessThan(.01));
+  });
+
   test('movement resets the stable streak to the current frame', () {
     final tracker = CardCaptureStabilityTracker(
       config: const CardCaptureStabilityConfig(
@@ -106,15 +128,29 @@ CardCaptureQualityAssessment _assessment({
   );
 }
 
-CardScanDetection _detection({double offset = 0}) {
+CardScanDetection _detection({
+  double offset = 0,
+  int cyclicShift = 0,
+}) {
   ProcessorPoint point(double x, double y) => ProcessorPoint(x + offset, y);
+
+  final points = <ProcessorPoint>[
+    point(.20, .30),
+    point(.80, .30),
+    point(.80, .70),
+    point(.20, .70),
+  ];
+  final shifted = List<ProcessorPoint>.generate(
+    points.length,
+    (index) => points[(index + cyclicShift) % points.length],
+  );
 
   return CardScanDetection(
     quad: ProcessorQuad(
-      topLeft: point(.20, .30),
-      topRight: point(.80, .30),
-      bottomRight: point(.80, .70),
-      bottomLeft: point(.20, .70),
+      topLeft: shifted[0],
+      topRight: shifted[1],
+      bottomRight: shifted[2],
+      bottomLeft: shifted[3],
     ),
     score: const CardScanDetectionScore(
       total: .90,
