@@ -96,11 +96,16 @@ enum CardCaptureQualityIssue {
 class CardCaptureQualityThresholds {
   const CardCaptureQualityThresholds({
     this.minimumSharpnessScore = .55,
+    this.minimumMeanLuma = .25,
+    this.maximumMeanLuma = .80,
     this.maximumDarkFraction = .30,
     this.maximumBrightFraction = .20,
     this.minimumCardCoverage = .32,
     this.minimumDetectionConfidence = .60,
   })  : assert(minimumSharpnessScore >= 0 && minimumSharpnessScore <= 1),
+        assert(minimumMeanLuma >= 0 && minimumMeanLuma <= 1),
+        assert(maximumMeanLuma >= 0 && maximumMeanLuma <= 1),
+        assert(minimumMeanLuma <= maximumMeanLuma),
         assert(maximumDarkFraction >= 0 && maximumDarkFraction <= 1),
         assert(maximumBrightFraction >= 0 && maximumBrightFraction <= 1),
         assert(minimumCardCoverage >= 0 && minimumCardCoverage <= 1),
@@ -109,6 +114,8 @@ class CardCaptureQualityThresholds {
         );
 
   final double minimumSharpnessScore;
+  final double minimumMeanLuma;
+  final double maximumMeanLuma;
   final double maximumDarkFraction;
   final double maximumBrightFraction;
   final double minimumCardCoverage;
@@ -141,21 +148,24 @@ class CardCaptureQualityAssessment {
         const CardCaptureQualityThresholds(),
   }) {
     final issues = <CardCaptureQualityIssue>{};
+    final detectionReliable =
+        analysis.detectionConfidence >= thresholds.minimumDetectionConfidence;
 
     if (analysis.blur.score < thresholds.minimumSharpnessScore) {
       issues.add(CardCaptureQualityIssue.blurry);
     }
-    if (analysis.exposure.darkFraction > thresholds.maximumDarkFraction) {
+    if (analysis.exposure.meanLuma < thresholds.minimumMeanLuma ||
+        analysis.exposure.darkFraction > thresholds.maximumDarkFraction) {
       issues.add(CardCaptureQualityIssue.tooDark);
     }
-    if (analysis.exposure.brightFraction > thresholds.maximumBrightFraction) {
+    if (analysis.exposure.meanLuma > thresholds.maximumMeanLuma ||
+        analysis.exposure.brightFraction > thresholds.maximumBrightFraction) {
       issues.add(CardCaptureQualityIssue.tooBright);
     }
-    if (analysis.cardCoverage < thresholds.minimumCardCoverage) {
-      issues.add(CardCaptureQualityIssue.cardTooSmall);
-    }
-    if (analysis.detectionConfidence < thresholds.minimumDetectionConfidence) {
+    if (!detectionReliable) {
       issues.add(CardCaptureQualityIssue.lowDetectionConfidence);
+    } else if (analysis.cardCoverage < thresholds.minimumCardCoverage) {
+      issues.add(CardCaptureQualityIssue.cardTooSmall);
     }
 
     final exposurePenalty =
