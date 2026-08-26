@@ -96,11 +96,22 @@ class CardCameraImageAdapter {
       CardCameraFrameFormat.bgra8888 => _decodeBgra8888(frame),
     };
 
-    final left = (roi.left * frame.width).floor().clamp(0, frame.width - 1);
-    final top = (roi.top * frame.height).floor().clamp(0, frame.height - 1);
-    final right = (roi.right * frame.width).ceil().clamp(left + 1, frame.width);
-    final bottom =
-        (roi.bottom * frame.height).ceil().clamp(top + 1, frame.height);
+    final left = (roi.left * frame.width)
+        .floor()
+        .clamp(0, frame.width - 1)
+        .toInt();
+    final top = (roi.top * frame.height)
+        .floor()
+        .clamp(0, frame.height - 1)
+        .toInt();
+    final right = (roi.right * frame.width)
+        .ceil()
+        .clamp(left + 1, frame.width)
+        .toInt();
+    final bottom = (roi.bottom * frame.height)
+        .ceil()
+        .clamp(top + 1, frame.height)
+        .toInt();
     final cropped = img.copyCrop(
       source,
       x: left,
