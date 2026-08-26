@@ -1,3 +1,5 @@
+import 'card_scan_detection.dart';
+
 class CardScanBlurQuality {
   const CardScanBlurQuality({
     required this.laplacianVariance,
@@ -5,8 +7,6 @@ class CardScanBlurQuality {
   });
 
   final double laplacianVariance;
-
-  /// Normalized [0, 1] sharpness measurement. Higher means more edge detail.
   final double score;
 
   factory CardScanBlurQuality.fromJson(Map<String, Object?> json) {
@@ -28,8 +28,6 @@ class CardScanExposureQuality {
   final double meanLuma;
   final double darkFraction;
   final double brightFraction;
-
-  /// Normalized [0, 1] exposure measurement.
   final double score;
 
   factory CardScanExposureQuality.fromJson(Map<String, Object?> json) {
@@ -43,9 +41,6 @@ class CardScanExposureQuality {
 }
 
 /// Measurement-only image quality analysis.
-///
-/// These values intentionally do not imply pass/fail capture readiness. Apps
-/// may observe them, collect calibration evidence, and define policy later.
 class CardScanQualityAnalysis {
   const CardScanQualityAnalysis({
     required this.blur,
@@ -56,11 +51,7 @@ class CardScanQualityAnalysis {
 
   final CardScanBlurQuality blur;
   final CardScanExposureQuality exposure;
-
-  /// Fraction [0, 1] of the analysis image covered by the detected card quad.
   final double cardCoverage;
-
-  /// Deterministic card-detector confidence [0, 1].
   final double detectionConfidence;
 
   factory CardScanQualityAnalysis.fromJson(Map<String, Object?> json) {
@@ -77,9 +68,29 @@ class CardScanQualityAnalysis {
   }
 }
 
-/// Interpreted quality issues suitable for live UI guidance.
-///
-/// This model remains advisory. It does not trigger capture automatically.
+/// Quality and detection produced by one native analysis pass.
+class CardScanFrameAnalysis {
+  const CardScanFrameAnalysis({
+    required this.quality,
+    required this.detection,
+  });
+
+  final CardScanQualityAnalysis quality;
+  final CardScanDetection? detection;
+
+  factory CardScanFrameAnalysis.fromJson(Map<String, Object?> json) {
+    final rawDetection = json['detection'];
+    return CardScanFrameAnalysis(
+      quality: CardScanQualityAnalysis.fromJson(json),
+      detection: rawDetection == null
+          ? null
+          : CardScanDetection.fromJson(
+              (rawDetection as Map<Object?, Object?>).cast<String, Object?>(),
+            ),
+    );
+  }
+}
+
 enum CardCaptureQualityIssue {
   blurry,
   tooDark,
@@ -88,11 +99,6 @@ enum CardCaptureQualityIssue {
   lowDetectionConfidence,
 }
 
-/// Tunable thresholds used to interpret deterministic quality measurements.
-///
-/// Defaults are intentionally conservative placeholders and are expected to be
-/// refined with physical calibration evidence before auto-capture policy is
-/// introduced.
 class CardCaptureQualityThresholds {
   const CardCaptureQualityThresholds({
     this.minimumSharpnessScore = .55,
@@ -122,7 +128,6 @@ class CardCaptureQualityThresholds {
   final double minimumDetectionConfidence;
 }
 
-/// Advisory interpretation of one quality-analysis sample.
 class CardCaptureQualityAssessment {
   const CardCaptureQualityAssessment({
     required this.analysis,
@@ -132,13 +137,9 @@ class CardCaptureQualityAssessment {
 
   final CardScanQualityAnalysis analysis;
   final Set<CardCaptureQualityIssue> issues;
-
-  /// Conservative aggregate [0, 1] score based on the weakest normalized
-  /// measurement. It is for UI/ranking only and is not an auto-capture gate.
   final double score;
 
   bool get hasIssues => issues.isNotEmpty;
-
   CardCaptureQualityIssue? get primaryIssue =>
       issues.isEmpty ? null : issues.first;
 
