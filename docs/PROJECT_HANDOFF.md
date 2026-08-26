@@ -22,9 +22,10 @@ Repository: `dexter-cnx/dxtr_card_scan`
 10. Camera detection is constrained by the capture-frame ROI before auto-detect.
 11. CPU-heavy decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
 12. Camera-to-Gallery switching remains inside one capture flow and reuses the package-owned Gallery crop/processor pipeline.
-13. Smart Capture quality interpretation remains advisory until physical calibration supports capture gating.
+13. Smart Capture thresholds remain calibration candidates until physical evidence supports production defaults.
 14. Live-frame and final-capture geometry share one explicit coordinate model; digital zoom/crop, fit, rotation and mirroring are never inferred ad hoc by UI code.
-15. Temporal stability is a deterministic policy layer over quality + detected quad samples; it does not trigger capture by itself.
+15. Temporal stability is deterministic policy over quality + detected quad samples.
+16. Auto-capture policy remains separate from camera ownership; the policy emits decisions and never invokes the shutter directly.
 
 ## Current status
 
@@ -32,7 +33,8 @@ Repository: `dexter-cnx/dxtr_card_scan`
 - SC-00 unified Camera/Gallery entry merged via PR #14 on 2026-08-26. Merge SHA: `062fc5dcb5deaf8d61b3649eb567ff0cae4e2b4c`.
 - SC-01 live card quality assessment model merged via PR #15 on 2026-08-26. Merge SHA: `50040812d27ceb504b85589a871f3ce9239592d2`.
 - SC-02 frame-to-sensor geometry merged via PR #16 on 2026-08-26. Merge SHA: `1d324af5a2264017bf5cb96e3ee3ce3c5cd33d10`.
-- Current work branch: `feature/sc03-blur-temporal-stability`.
+- SC-03 blur + temporal stability merged via PR #17 on 2026-08-26. Merge SHA: `822bacd31832307dda27c4ea70115d441ab0846f`.
+- Current work branch: `feature/sc04-quality-gated-auto-capture`.
 
 ## High-level capture surfaces
 
@@ -46,57 +48,43 @@ Repository: `dexter-cnx/dxtr_card_scan`
 
 ### SC-00 — Unified Camera/Gallery entry
 
-`CardCameraGalleryCaptureView` keeps Camera as the initial surface and exposes Gallery directly from the Camera flow. Gallery selection enters the existing crop/native-processing pipeline and closing it returns to Camera. The shortcut is disabled during camera post-crop confirmation so it cannot overlap Retake/Confirm.
+`CardCameraGalleryCaptureView` keeps Camera as the initial surface and exposes Gallery directly from the Camera flow. Gallery selection enters the existing crop/native-processing pipeline and closing it returns to Camera.
 
 ## Smart Capture
 
 ### SC-01 — Live card quality model
 
-The deterministic quality metrics have an advisory interpretation layer:
-- `CardCaptureQualityIssue`
-- `CardCaptureQualityThresholds`
-- `CardCaptureQualityAssessment`
-- conservative aggregate score
-- deterministic `primaryIssue` for UI guidance
-
-Exposure interpretation uses both clipped fractions and mean luminance. `cardTooSmall` is emitted only when card detection is trustworthy; no-detection frames prioritize `lowDetectionConfidence`.
+The deterministic quality metrics have an advisory interpretation layer through `CardCaptureQualityIssue`, `CardCaptureQualityThresholds`, and `CardCaptureQualityAssessment`. Exposure uses both clipped fractions and mean luminance. Missing detection is not misreported as merely a small card.
 
 ### SC-02 — Frame-to-sensor geometry
 
-`CameraGeometryMapper` is the explicit mapping boundary for live capture geometry. It models viewport size, raw sensor/image size, orientation/mirror transform, preview `BoxFit`, and `displayedCropRegion` for digital zoom/platform crop.
-
-It exposes viewport rectangle -> normalized raw sensor rectangle and viewport rectangle -> raw sensor pixel rectangle. Letterbox padding under `BoxFit.contain` is not treated as sensor content.
-
-SC-03/SC-04 must consume this same geometry contract so live analysis and final capture use the same visible card ROI.
+`CameraGeometryMapper` models viewport size, raw sensor/image size, orientation/mirror transform, preview `BoxFit`, and `displayedCropRegion` for digital zoom/platform crop. Live analysis and final capture must use this same geometry contract.
 
 ### SC-03 — Blur + temporal stability
 
-Current branch adds a camera-plugin-agnostic temporal policy layer:
-- `CardCaptureStabilityConfig`
-- `CardCaptureStabilityIssue`
-- `CardCaptureStabilitySnapshot`
-- `CardCaptureStabilityTracker`
+`CardCaptureStabilityTracker` accepts one `CardCaptureQualityAssessment` plus optional `CardScanDetection` per analyzed frame. Blur/missing/invalid detection resets the streak; spatial movement starts a new streak at the current valid frame. Corresponding corners are aligned across cyclic quad rotations before displacement is measured so detector start-corner jitter does not create false motion.
 
-The tracker accepts one `CardCaptureQualityAssessment` plus an optional `CardScanDetection` per analyzed frame. A sample cannot advance the stable streak when:
-- blur score is below the configured sharpness threshold
-- detection is missing
-- detection confidence is below threshold
-- corresponding quad corners move farther than `maximumCornerDisplacement`
-- card coverage changes more than `maximumCoverageDelta`
+### SC-04 — Quality-gated auto capture
 
-A valid first frame starts a streak at 1. Spatial movement resets the streak to 1 because the current frame can become the new baseline; blur or invalid/missing detection resets it to 0. `CardCaptureStabilitySnapshot.isStable` becomes true only after `requiredStableFrames` consecutive accepted samples.
+Current branch adds a pure decision layer:
+- `CardAutoCaptureState`: `searching`, `detected`, `ready`, `cooldown`
+- `CardAutoCaptureConfig`
+- `CardAutoCaptureDecision`
+- `CardAutoCapturePolicy`
 
-SC-03 remains advisory and deterministic. It does not start the camera image stream and does not fire the shutter. SC-04 will own the state machine/cooldown/auto-capture decision.
+Policy inputs are SC-01 quality plus SC-03 stability. Detection confidence determines `searching`; valid detection that has not cleared all gates is `detected`; clear quality + stable streak is `ready`.
+
+Auto capture is **disabled by default**. When enabled, a ready decision emits `shouldCapture = true` and enters cooldown. The policy itself never calls `CardCaptureController` or owns camera lifecycle.
+
+`minimumQualityScore` defaults to zero because the current aggregate score includes card coverage and is not yet physically calibrated for a universal readiness threshold. Explicit quality issues + temporal stability are the default gates; applications may opt into a score threshold after collecting evidence.
+
+SC-04 still needs live camera frame-stream integration/throttling before end-to-end auto capture is complete.
 
 ## Processor/result representation
 
 `CardCaptureImage` uses a file path as its primary representation and exposes `readBytes()` for consumers that need bytes.
 
-`CardCaptureResult` currently exposes:
-- `original`
-- `cropped`
-- `processed`
-- `sourceRoi`
+`CardCaptureResult` currently exposes `original`, `cropped`, `processed`, and `sourceRoi`.
 
 ## Important validation lessons
 
@@ -109,15 +97,16 @@ SC-03 remains advisory and deterministic. It does not start the camera image str
 7. Exposure guidance cannot rely only on clipped-pixel fractions.
 8. A missing card detection must not be misreported as merely a small card.
 9. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
-10. Temporal stability should compare detected corner positions and coverage, not only aggregate quality scores.
+10. Stability corner matching must tolerate cyclic detector corner ordering.
+11. Aggregate quality score must not be assigned an uncalibrated high default readiness threshold because card coverage contributes directly to that score.
 
 ## Smart Capture roadmap
 
 - SC-00 — Unified Camera/Gallery entry: merged.
 - SC-01 — Live card quality model and advisory guidance: merged.
 - SC-02 — Formal frame-to-sensor geometry mapping: merged; physical mapping evidence remains.
-- SC-03 — Blur and temporal stability detection: implementation in progress.
-- SC-04 — Quality-gated auto capture.
+- SC-03 — Blur and temporal stability detection: merged; physical stability calibration remains.
+- SC-04 — Quality-gated auto capture: decision/state/cooldown policy in progress; live stream integration remains.
 - SC-05 — Glare detection, including OCR-sensitive card regions.
 - SC-06 — Perspective/alignment score.
 - SC-07 — Corner-confidence feedback UI.
@@ -127,9 +116,9 @@ SC-03 remains advisory and deterministic. It does not start the camera image str
 
 ## Next milestone
 
-Finish SC-03 CI/review. Then SC-04 can add a searching/detected/ready state machine, throttled live-analysis integration and optional auto-capture using quality + stability as independent gates.
+Finish SC-04 CI/review, then integrate throttled live camera analysis using `CameraGeometryMapper`, quality assessment, stability tracker, and auto-capture policy without duplicating the final-capture ROI mapping.
 
-Physical calibration remains required before default auto-capture thresholds are treated as production-ready.
+Physical calibration remains required before non-zero aggregate score thresholds or aggressive auto-capture defaults are treated as production-ready.
 
 ## Documentation policy
 
