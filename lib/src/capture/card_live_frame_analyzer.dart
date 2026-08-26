@@ -47,14 +47,13 @@ CardLiveAnalysisSample _analyzeLiveFrame(
     quality: jpegQuality,
   );
   final processor = CardScanProcessor();
-  final analysis = processor.analyzeQualityBytes(encoded);
-  final detection = processor.detectBytes(encoded);
+  final frameAnalysis = processor.analyzeFrameBytes(encoded);
 
   return CardLiveAnalysisSample(
     quality: CardCaptureQualityAssessment.fromAnalysis(
-      analysis,
+      frameAnalysis.quality,
       thresholds: thresholds,
     ),
-    detection: detection,
+    detection: frameAnalysis.detection,
   );
 }
