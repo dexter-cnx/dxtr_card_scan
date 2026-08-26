@@ -2,6 +2,7 @@ library dxtr_card_scan;
 
 export 'src/capture/capture_confirmation_mode.dart';
 export 'src/capture/capture_orientation_policy.dart';
+export 'src/capture/card_camera_gallery_capture_view.dart';
 export 'src/capture/card_capture_controller.dart';
 export 'src/capture/card_capture_controls_config.dart';
 export 'src/capture/card_capture_controls_scope.dart';

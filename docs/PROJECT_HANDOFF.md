@@ -1,6 +1,6 @@
 # Project Handoff
 
-Last updated: 2026-08-22
+Last updated: 2026-08-26
 
 ## Project
 
@@ -26,6 +26,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 14. CPU-heavy image decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
 15. Desktop-selected files are read-only inputs; normalized/intermediate files are written to temporary storage.
 16. File-backed staged images are preferred over eagerly copying multi-megabyte byte buffers; callers can request bytes when needed.
+17. Camera-to-Gallery switching must remain inside one capture flow and reuse the package-owned Gallery crop/processor pipeline rather than duplicate processing logic.
 
 ## Current status
 
@@ -35,16 +36,15 @@ PR #7 (`v0.2 PR5 — native processor validation flow`) passed CI and was squash
 
 Merge SHA: `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5`
 
-Current branch: `feature/high-level-capture-pipeline`
-Current PR: #9 — `High-level capture pipeline owned by package`
+Current work branch: `feature/sc00-camera-gallery-entry`
 
-PR #9 is a pre-v0.3 API-ownership refactor. The goal is for Example code to define frame/UI configuration, processing options and result presentation only; Camera/Gallery mechanics remain package-owned.
+SC-00 is the first Smart Capture UX increment. It adds a unified Camera/Gallery entry point before the live quality and auto-capture work.
 
 ## High-level capture API refactor
 
 ### Camera
 
-`CardCaptureView` is now the high-level Camera surface and owns:
+`CardCaptureView` is the high-level Camera surface and owns:
 - camera discovery and lifecycle
 - back camera selection
 - Camera preview and `BoxFit.cover` geometry
@@ -88,6 +88,24 @@ Camera result stages:
 `CardGalleryCropView` remains available when the host already owns a source path but still wants package-owned crop/process behavior.
 
 All package-owned Gallery text is supplied through `GalleryCropLabels`.
+
+### SC-00 — Unified Camera/Gallery entry
+
+`CardCameraGalleryCaptureView` wraps the existing package-owned Camera and Gallery surfaces into one scan flow.
+
+Behavior:
+- Camera remains the initial surface.
+- A package-owned Gallery shortcut is shown directly on the Camera screen.
+- Portrait places the shortcut at the lower-left; landscape places it at bottom-center to avoid the side-mounted landscape shutter.
+- Android/iOS use the package default `image_picker` Gallery source.
+- macOS uses the package default `file_selector` source.
+- `pickGalleryImagePath` remains an optional host override; the package does not require the host to surrender crop/process ownership.
+- Selecting a Gallery image replaces the Camera surface with `CardGalleryCropView`.
+- Closing the Gallery crop returns to the Camera surface.
+- Gallery and Camera share `CardScanProcessorOptions`, staged callbacks, and final `onCompleted` result handling.
+- `showGalleryShortcut` can disable the shortcut while retaining the unified surface.
+
+SC-00 deliberately reuses `CardGalleryCropView`; it does not create a second Gallery processing pipeline.
 
 ### Image/result representation
 
@@ -170,16 +188,29 @@ CI run `32569564457` passed Flutter analyze/tests, Android native APK build, Rus
 5. Darwin `-force_load` belongs to the plugin Pod target that owns the Rust build phase, not the Runner target.
 6. macOS sandbox-selected files must not be used as output locations for normalized/intermediate files.
 7. Desktop Gallery uses a desktop-native picker rather than mobile-oriented `image_picker`.
+8. Unified Camera/Gallery UX should switch sources above the crop/process pipeline; source selection must not fork processing behavior.
+
+## Smart Capture roadmap
+
+The direction is card/OCR-specific capture quality rather than becoming a generic document scanner.
+
+- SC-00 — Unified Camera/Gallery entry: implementation in progress on `feature/sc00-camera-gallery-entry`.
+- SC-01 — Live card quality model and user guidance.
+- SC-02 — Formal frame-to-sensor geometry mapping and calibration evidence.
+- SC-03 — Blur and temporal stability detection.
+- SC-04 — Quality-gated auto capture.
+- SC-05 — Glare detection, including OCR-sensitive card regions.
+- SC-06 — Perspective/alignment score.
+- SC-07 — Corner-confidence feedback UI.
+- SC-08 — Quality metadata in `CardCaptureResult`.
+- SC-09 — Capture behavior profiles (`ocr`, `fast`, `archival`, `manual`).
+- SC-10 — Optional platform-native scanner fallback; not a replacement for the custom card capture engine.
 
 ## Next milestone
 
-Finish PR #9 CI/review and physical regression validation, then proceed to **v0.3 Quality analysis**:
-- blur score
-- exposure quality
-- card coverage
-- detection confidence
+Finish SC-00 CI/review and physical Camera -> Gallery -> crop -> process -> Camera-return regression validation. Then proceed with SC-01 through SC-04 on top of the existing v0.3 quality measurements.
 
-Keep quality analysis as measurements first; do not couple it to live auto-capture until the metrics are stable.
+Keep quality analysis as measurements first; do not couple it to live auto-capture until the metrics are stable enough to calibrate with physical-device evidence.
 
 ## Native build policy
 
