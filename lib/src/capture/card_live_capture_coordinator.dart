@@ -26,29 +26,42 @@ class CardLiveCaptureCoordinator {
   CardLiveCaptureCoordinator({
     CardCaptureStabilityTracker? stabilityTracker,
     CardAutoCapturePolicy? autoCapturePolicy,
-    required this.capture,
+    CardLiveCaptureTrigger? capture,
     this.analysisInterval = const Duration(milliseconds: 180),
     DateTime Function()? clock,
   })  : _stabilityTracker =
             stabilityTracker ?? CardCaptureStabilityTracker(),
         _autoCapturePolicy = autoCapturePolicy ?? CardAutoCapturePolicy(),
+        _capture = capture,
         _clock = clock ?? DateTime.now;
 
   final CardCaptureStabilityTracker _stabilityTracker;
   final CardAutoCapturePolicy _autoCapturePolicy;
-  final CardLiveCaptureTrigger capture;
   final Duration analysisInterval;
   final DateTime Function() _clock;
 
+  CardLiveCaptureTrigger? _capture;
   DateTime? _lastAcceptedAt;
   bool _captureInFlight = false;
 
   bool get captureInFlight => _captureInFlight;
+  bool get hasCaptureDelegate => _capture != null;
   int get stableFrameCount => _stabilityTracker.stableFrameCount;
+
+  /// Attaches the package-owned shutter path used by [submit].
+  void attachCapture(CardLiveCaptureTrigger capture) {
+    _capture = capture;
+  }
+
+  /// Detaches [capture] only when it is the currently attached delegate.
+  void detachCapture(CardLiveCaptureTrigger capture) {
+    if (identical(_capture, capture)) {
+      _capture = null;
+    }
+  }
 
   void reset() {
     _lastAcceptedAt = null;
-    _captureInFlight = false;
     _stabilityTracker.reset();
     _autoCapturePolicy.reset();
   }
@@ -56,9 +69,9 @@ class CardLiveCaptureCoordinator {
   /// Submits one already-analyzed ROI sample.
   ///
   /// Returns `null` when the sample is throttled. When auto capture is enabled
-  /// and the policy emits `shouldCapture`, [capture] is invoked at most once at
-  /// a time. Re-entrant samples cannot trigger a second shutter while the
-  /// previous capture is still in flight.
+  /// and the policy emits `shouldCapture`, the attached capture delegate is
+  /// invoked at most once at a time. Re-entrant samples cannot trigger a second
+  /// shutter while the previous capture is still in flight.
   Future<CardAutoCaptureDecision?> submit(CardLiveAnalysisSample sample) async {
     final now = _clock();
     final previous = _lastAcceptedAt;
@@ -76,7 +89,8 @@ class CardLiveCaptureCoordinator {
       stability: stability,
     );
 
-    if (!decision.shouldCapture || _captureInFlight) {
+    final capture = _capture;
+    if (!decision.shouldCapture || _captureInFlight || capture == null) {
       return decision;
     }
 
