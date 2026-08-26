@@ -84,14 +84,19 @@ class CardLiveCameraSession {
   ///
   /// Existing analysis remains marked in flight until its future settles, so
   /// a subsequent [start] cannot admit overlapping work from a new generation.
-  Future<void> stop() async {
+  /// Set [resetCoordinator] to false when temporarily pausing for still capture
+  /// so stability/cooldown policy state survives until streaming resumes.
+  Future<void> stop({bool resetCoordinator = true}) async {
     final camera = _camera;
-    if (camera == null) return;
+    if (camera == null) {
+      if (resetCoordinator) coordinator.reset();
+      return;
+    }
 
     _camera = null;
     _lastAcceptedAt = null;
     ++_generation;
-    coordinator.reset();
+    if (resetCoordinator) coordinator.reset();
 
     try {
       await camera.stopImageStream();
