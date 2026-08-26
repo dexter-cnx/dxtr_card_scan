@@ -27,4 +27,74 @@ void main() {
     expect(analysis.cardCoverage, 0.43);
     expect(analysis.detectionConfidence, 0.87);
   });
+
+  test('quality assessment reports advisory issues', () {
+    const analysis = CardScanQualityAnalysis(
+      blur: CardScanBlurQuality(
+        laplacianVariance: 42,
+        score: .40,
+      ),
+      exposure: CardScanExposureQuality(
+        meanLuma: .30,
+        darkFraction: .40,
+        brightFraction: .02,
+        score: .50,
+      ),
+      cardCoverage: .20,
+      detectionConfidence: .45,
+    );
+
+    final assessment = CardCaptureQualityAssessment.fromAnalysis(analysis);
+
+    expect(
+      assessment.issues,
+      containsAll(<CardCaptureQualityIssue>{
+        CardCaptureQualityIssue.blurry,
+        CardCaptureQualityIssue.tooDark,
+        CardCaptureQualityIssue.cardTooSmall,
+        CardCaptureQualityIssue.lowDetectionConfidence,
+      }),
+    );
+    expect(assessment.primaryIssue, CardCaptureQualityIssue.blurry);
+    expect(assessment.hasIssues, isTrue);
+    expect(assessment.score, .20);
+  });
+
+  test('quality thresholds are configurable', () {
+    const analysis = CardScanQualityAnalysis(
+      blur: CardScanBlurQuality(
+        laplacianVariance: 100,
+        score: .70,
+      ),
+      exposure: CardScanExposureQuality(
+        meanLuma: .50,
+        darkFraction: .05,
+        brightFraction: .05,
+        score: .90,
+      ),
+      cardCoverage: .40,
+      detectionConfidence: .75,
+    );
+
+    final defaultAssessment =
+        CardCaptureQualityAssessment.fromAnalysis(analysis);
+    final strictAssessment = CardCaptureQualityAssessment.fromAnalysis(
+      analysis,
+      thresholds: const CardCaptureQualityThresholds(
+        minimumSharpnessScore: .80,
+        minimumCardCoverage: .50,
+        minimumDetectionConfidence: .80,
+      ),
+    );
+
+    expect(defaultAssessment.issues, isEmpty);
+    expect(
+      strictAssessment.issues,
+      containsAll(<CardCaptureQualityIssue>{
+        CardCaptureQualityIssue.blurry,
+        CardCaptureQualityIssue.cardTooSmall,
+        CardCaptureQualityIssue.lowDetectionConfidence,
+      }),
+    );
+  });
 }
