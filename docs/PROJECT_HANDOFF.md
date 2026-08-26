@@ -23,14 +23,16 @@ Repository: `dexter-cnx/dxtr_card_scan`
 11. CPU-heavy decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
 12. Camera-to-Gallery switching remains inside one capture flow and reuses the package-owned Gallery crop/processor pipeline.
 13. Smart Capture quality interpretation remains advisory until physical calibration supports capture gating.
-14. Live-frame and final-capture geometry must share one explicit coordinate model; digital zoom/crop, fit, rotation and mirroring cannot be inferred ad hoc by UI code.
+14. Live-frame and final-capture geometry share one explicit coordinate model; digital zoom/crop, fit, rotation and mirroring are never inferred ad hoc by UI code.
+15. Temporal stability is a deterministic policy layer over quality + detected quad samples; it does not trigger capture by itself.
 
 ## Current status
 
 - `v0.2` native processor foundation is complete and closed.
 - SC-00 unified Camera/Gallery entry merged via PR #14 on 2026-08-26. Merge SHA: `062fc5dcb5deaf8d61b3649eb567ff0cae4e2b4c`.
 - SC-01 live card quality assessment model merged via PR #15 on 2026-08-26. Merge SHA: `50040812d27ceb504b85589a871f3ce9239592d2`.
-- Current work branch: `feature/sc02-frame-sensor-geometry`.
+- SC-02 frame-to-sensor geometry merged via PR #16 on 2026-08-26. Merge SHA: `1d324af5a2264017bf5cb96e3ee3ce3c5cd33d10`.
+- Current work branch: `feature/sc03-blur-temporal-stability`.
 
 ## High-level capture surfaces
 
@@ -50,7 +52,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 
 ### SC-01 — Live card quality model
 
-The existing deterministic quality metrics now have an advisory interpretation layer:
+The deterministic quality metrics have an advisory interpretation layer:
 - `CardCaptureQualityIssue`
 - `CardCaptureQualityThresholds`
 - `CardCaptureQualityAssessment`
@@ -59,32 +61,32 @@ The existing deterministic quality metrics now have an advisory interpretation l
 
 Exposure interpretation uses both clipped fractions and mean luminance. `cardTooSmall` is emitted only when card detection is trustworthy; no-detection frames prioritize `lowDetectionConfidence`.
 
-SC-01 deliberately has no shutter side effects and does not start a camera image stream.
-
 ### SC-02 — Frame-to-sensor geometry
 
-Current implementation branch adds `CameraGeometryMapper` as the explicit mapping boundary for live capture geometry.
+`CameraGeometryMapper` is the explicit mapping boundary for live capture geometry. It models viewport size, raw sensor/image size, orientation/mirror transform, preview `BoxFit`, and `displayedCropRegion` for digital zoom/platform crop.
 
-Inputs:
-- viewport size
-- raw sensor/image size
-- orientation/mirror transform
-- preview `BoxFit`
-- `displayedCropRegion` in orientation-normalized sensor coordinates, representing platform crop/digital zoom
+It exposes viewport rectangle -> normalized raw sensor rectangle and viewport rectangle -> raw sensor pixel rectangle. Letterbox padding under `BoxFit.contain` is not treated as sensor content.
 
-Outputs:
-- viewport rectangle -> normalized raw sensor rectangle
-- viewport rectangle -> raw sensor pixel rectangle
+SC-03/SC-04 must consume this same geometry contract so live analysis and final capture use the same visible card ROI.
 
-This model is designed so SC-03/SC-04 can analyze the exact same ROI represented by the visible capture frame rather than using a second coordinate system for live frames.
+### SC-03 — Blur + temporal stability
 
-Tests cover:
-- `BoxFit.cover` crop mapping
-- digital-zoom/crop-region mapping
-- rotated raw sensor mapping
-- `BoxFit.contain` letterbox rejection
+Current branch adds a camera-plugin-agnostic temporal policy layer:
+- `CardCaptureStabilityConfig`
+- `CardCaptureStabilityIssue`
+- `CardCaptureStabilitySnapshot`
+- `CardCaptureStabilityTracker`
 
-Physical calibration evidence should record mapping inputs and expected ROI overlays on real devices before auto-capture is enabled.
+The tracker accepts one `CardCaptureQualityAssessment` plus an optional `CardScanDetection` per analyzed frame. A sample cannot advance the stable streak when:
+- blur score is below the configured sharpness threshold
+- detection is missing
+- detection confidence is below threshold
+- corresponding quad corners move farther than `maximumCornerDisplacement`
+- card coverage changes more than `maximumCoverageDelta`
+
+A valid first frame starts a streak at 1. Spatial movement resets the streak to 1 because the current frame can become the new baseline; blur or invalid/missing detection resets it to 0. `CardCaptureStabilitySnapshot.isStable` becomes true only after `requiredStableFrames` consecutive accepted samples.
+
+SC-03 remains advisory and deterministic. It does not start the camera image stream and does not fire the shutter. SC-04 will own the state machine/cooldown/auto-capture decision.
 
 ## Processor/result representation
 
@@ -107,13 +109,14 @@ Physical calibration evidence should record mapping inputs and expected ROI over
 7. Exposure guidance cannot rely only on clipped-pixel fractions.
 8. A missing card detection must not be misreported as merely a small card.
 9. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
+10. Temporal stability should compare detected corner positions and coverage, not only aggregate quality scores.
 
 ## Smart Capture roadmap
 
 - SC-00 — Unified Camera/Gallery entry: merged.
 - SC-01 — Live card quality model and advisory guidance: merged.
-- SC-02 — Formal frame-to-sensor geometry mapping and calibration evidence: in progress.
-- SC-03 — Blur and temporal stability detection.
+- SC-02 — Formal frame-to-sensor geometry mapping: merged; physical mapping evidence remains.
+- SC-03 — Blur and temporal stability detection: implementation in progress.
 - SC-04 — Quality-gated auto capture.
 - SC-05 — Glare detection, including OCR-sensitive card regions.
 - SC-06 — Perspective/alignment score.
@@ -124,9 +127,9 @@ Physical calibration evidence should record mapping inputs and expected ROI over
 
 ## Next milestone
 
-Finish SC-02 CI/review, then collect physical mapping evidence on representative Android/iOS devices. Continue to SC-03 temporal stability only after the live ROI mapping contract is stable.
+Finish SC-03 CI/review. Then SC-04 can add a searching/detected/ready state machine, throttled live-analysis integration and optional auto-capture using quality + stability as independent gates.
 
-Keep quality analysis and geometry deterministic and testable. Do not couple them to auto-capture until physical-device evidence supports the thresholds and mapping assumptions.
+Physical calibration remains required before default auto-capture thresholds are treated as production-ready.
 
 ## Documentation policy
 
