@@ -83,7 +83,7 @@ Still capture calls `stop()` before `takePicture()`. Streaming remains stopped d
 
 Zoomed live analysis is intentionally skipped for now. The plugin/platform preview-to-stream crop relationship still needs physical evidence; final still capture zoom behavior is unchanged.
 
-Android/iOS stream orientation and preview-to-stream mapping still require physical-device validation before automatic live streaming is enabled by default.
+Android/iOS stream orientation and preview-to-stream mapping still require physical-device validation before automatic live streaming is enabled by default. Use `docs/SC04_LIVE_CAPTURE_VALIDATION.md` as the evidence checklist.
 
 ## Important validation lessons
 
