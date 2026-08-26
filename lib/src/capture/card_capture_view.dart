@@ -136,7 +136,6 @@ class _CardCaptureViewState extends State<CardCaptureView>
   final CardCaptureController _internalController = CardCaptureController();
 
   CameraController? _camera;
-  CardLiveCaptureCoordinator? _liveCoordinator;
   CardLiveCameraSession? _liveSession;
   bool _initializing = false;
   bool _busy = false;
@@ -297,14 +296,12 @@ class _CardCaptureViewState extends State<CardCaptureView>
       },
     );
 
-    _liveCoordinator = coordinator;
     _liveSession = session;
     try {
       await session.start(camera);
     } catch (error) {
       if (identical(_liveSession, session)) {
         _liveSession = null;
-        _liveCoordinator = null;
       }
       if (mounted) setState(() => _error = error);
     }
@@ -317,7 +314,6 @@ class _CardCaptureViewState extends State<CardCaptureView>
   Future<void> _stopLiveSession() async {
     final session = _liveSession;
     _liveSession = null;
-    _liveCoordinator = null;
     await session?.stop();
   }
 
