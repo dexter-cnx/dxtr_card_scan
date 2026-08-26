@@ -19,184 +19,100 @@ Repository: `dexter-cnx/dxtr_card_scan`
 7. Host apps may replace the default Gallery picker through an escape-hatch callback without taking ownership of crop/process behavior.
 8. Grayscale/OCR enhancement remains opt-in.
 9. `Dxtr`/`dxtr` is reserved for package/repository identity; public Dart domain types remain neutral.
-10. v0.2 detection remains deterministic classical CV.
-11. `perspective_quad` is interpreted after orientation normalization and optional ROI crop.
-12. Camera detection is constrained by the capture-frame ROI before auto-detect.
-13. Perspective-warp canonicalization preserves source-top direction after long-edge normalization.
-14. CPU-heavy image decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
-15. Desktop-selected files are read-only inputs; normalized/intermediate files are written to temporary storage.
-16. File-backed staged images are preferred over eagerly copying multi-megabyte byte buffers; callers can request bytes when needed.
-17. Camera-to-Gallery switching must remain inside one capture flow and reuse the package-owned Gallery crop/processor pipeline rather than duplicate processing logic.
+10. Camera detection is constrained by the capture-frame ROI before auto-detect.
+11. CPU-heavy decode/orientation work and synchronous native FFI processing run off Flutter's UI isolate.
+12. Camera-to-Gallery switching remains inside one capture flow and reuses the package-owned Gallery crop/processor pipeline.
+13. Smart Capture quality interpretation remains advisory until physical calibration supports capture gating.
+14. Live-frame and final-capture geometry must share one explicit coordinate model; digital zoom/crop, fit, rotation and mirroring cannot be inferred ad hoc by UI code.
 
 ## Current status
 
-`v0.2` is complete and closed.
+- `v0.2` native processor foundation is complete and closed.
+- SC-00 unified Camera/Gallery entry merged via PR #14 on 2026-08-26. Merge SHA: `062fc5dcb5deaf8d61b3649eb567ff0cae4e2b4c`.
+- SC-01 live card quality assessment model merged via PR #15 on 2026-08-26. Merge SHA: `50040812d27ceb504b85589a871f3ce9239592d2`.
+- Current work branch: `feature/sc02-frame-sensor-geometry`.
 
-PR #7 (`v0.2 PR5 — native processor validation flow`) passed CI and was squash-merged to `main` on 2026-08-22.
-
-Merge SHA: `6b8b1bbeb4455e1d411926d8b7c56239f4a127e5`
-
-Current work branch: `feature/sc00-camera-gallery-entry`
-
-SC-00 is the first Smart Capture UX increment. It adds a unified Camera/Gallery entry point before the live quality and auto-capture work.
-
-## High-level capture API refactor
+## High-level capture surfaces
 
 ### Camera
 
-`CardCaptureView` is the high-level Camera surface and owns:
-- camera discovery and lifecycle
-- back camera selection
-- Camera preview and `BoxFit.cover` geometry
-- Back / flash / torch / pinch zoom / shutter controls
-- orientation policy
-- capture-frame rendering
-- JPEG capture
-- EXIF orientation normalization
-- frame -> normalized source ROI mapping
-- native auto-detect / perspective rectification
-- optional post-rectification confirmation
-- final enhancement/resize/encoding
-- temporary intermediate files
-
-Host configuration remains:
-- `CaptureFrame`
-- `CardScanProcessorOptions`
-- `CaptureConfirmationMode`
-- `CardCaptureControlsConfig`
-- `CardCaptureLabels`
-- theme/style overrides
-- staged callbacks / final presentation
-
-Camera result stages:
-1. `onRawCaptured` — full camera image, not cropped
-2. `onCropReady` — perspective-rectified card before final enhancement
-3. `onCompleted` — `CardCaptureResult` containing `original`, `cropped`, and `processed`
+`CardCaptureView` owns camera discovery/lifecycle, back-camera selection, preview, controls, orientation policy, frame rendering, capture, EXIF normalization, ROI mapping, native rectification, confirmation, processing and temporary intermediates.
 
 ### Gallery
 
-`CardGalleryCaptureView` owns the default source-selection and processing path:
-- Android/iOS: `image_picker`
-- macOS: `file_selector`
-- optional host `pickImagePath` override
-- EXIF normalization
-- `ImageCropView`
-- ROI -> auto-detect -> perspective rectification
-- optional confirmation
-- final processing
-
-`CardGalleryCropView` remains available when the host already owns a source path but still wants package-owned crop/process behavior.
-
-All package-owned Gallery text is supplied through `GalleryCropLabels`.
+`CardGalleryCaptureView` owns default source selection and processing. Android/iOS use `image_picker`; macOS uses `file_selector`; hosts can override only the source picker. `CardGalleryCropView` remains available when a host already owns the source path.
 
 ### SC-00 — Unified Camera/Gallery entry
 
-`CardCameraGalleryCaptureView` wraps the existing package-owned Camera and Gallery surfaces into one scan flow.
+`CardCameraGalleryCaptureView` keeps Camera as the initial surface and exposes Gallery directly from the Camera flow. Gallery selection enters the existing crop/native-processing pipeline and closing it returns to Camera. The shortcut is disabled during camera post-crop confirmation so it cannot overlap Retake/Confirm.
 
-Behavior:
-- Camera remains the initial surface.
-- A package-owned Gallery shortcut is shown directly on the Camera screen.
-- Portrait places the shortcut at the lower-left; landscape places it at bottom-center to avoid the side-mounted landscape shutter.
-- Android/iOS use the package default `image_picker` Gallery source.
-- macOS uses the package default `file_selector` source.
-- `pickGalleryImagePath` remains an optional host override; the package does not require the host to surrender crop/process ownership.
-- Selecting a Gallery image replaces the Camera surface with `CardGalleryCropView`.
-- Closing the Gallery crop returns to the Camera surface.
-- Gallery and Camera share `CardScanProcessorOptions`, staged callbacks, and final `onCompleted` result handling.
-- `showGalleryShortcut` can disable the shortcut while retaining the unified surface.
+## Smart Capture
 
-SC-00 deliberately reuses `CardGalleryCropView`; it does not create a second Gallery processing pipeline.
+### SC-01 — Live card quality model
 
-### Image/result representation
+The existing deterministic quality metrics now have an advisory interpretation layer:
+- `CardCaptureQualityIssue`
+- `CardCaptureQualityThresholds`
+- `CardCaptureQualityAssessment`
+- conservative aggregate score
+- deterministic `primaryIssue` for UI guidance
 
-`CardCaptureImage` uses a file path as its primary representation and exposes `readBytes()` for consumers that need bytes. This avoids forcing multi-megabyte copies between isolates or callbacks at every stage.
+Exposure interpretation uses both clipped fractions and mean luminance. `cardTooSmall` is emitted only when card detection is trustworthy; no-detection frames prioritize `lowDetectionConfidence`.
 
-`CardCaptureResult` exposes:
+SC-01 deliberately has no shutter side effects and does not start a camera image stream.
+
+### SC-02 — Frame-to-sensor geometry
+
+Current implementation branch adds `CameraGeometryMapper` as the explicit mapping boundary for live capture geometry.
+
+Inputs:
+- viewport size
+- raw sensor/image size
+- orientation/mirror transform
+- preview `BoxFit`
+- `displayedCropRegion` in orientation-normalized sensor coordinates, representing platform crop/digital zoom
+
+Outputs:
+- viewport rectangle -> normalized raw sensor rectangle
+- viewport rectangle -> raw sensor pixel rectangle
+
+This model is designed so SC-03/SC-04 can analyze the exact same ROI represented by the visible capture frame rather than using a second coordinate system for live frames.
+
+Tests cover:
+- `BoxFit.cover` crop mapping
+- digital-zoom/crop-region mapping
+- rotated raw sensor mapping
+- `BoxFit.contain` letterbox rejection
+
+Physical calibration evidence should record mapping inputs and expected ROI overlays on real devices before auto-capture is enabled.
+
+## Processor/result representation
+
+`CardCaptureImage` uses a file path as its primary representation and exposes `readBytes()` for consumers that need bytes.
+
+`CardCaptureResult` currently exposes:
 - `original`
 - `cropped`
 - `processed`
 - `sourceRoi`
 
-## Completed
-
-### v0.1 capture foundation
-
-Camera/Gallery navigation, portrait/landscape controls, flash, torch, pinch zoom, configurable capture-frame alignment/padding, orientation policies, Gallery crop, and `CardScanTheme` passed physical-device validation.
-
-### v0.2 PR1 — Rust processor foundation
-
-JPEG/PNG decode, orientation normalization, pixel-stable ROI crop, optional grayscale/resize, encoding, stable C ABI, result ownership/free contract, and panic containment.
-
-### v0.2 PR2 — quadrilateral detection
-
-Deterministic classical-CV detection: grayscale/blur/Sobel/adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, scoring, and regression coverage.
-
-### v0.2 PR3 — perspective warp / OCR enhancement
-
-Deterministic projective warp, bilinear sampling, cyclic-quad handling, source-top-preserving long-edge orientation, bounded output size, auto-detect/manual quad integration, OCR enhancement, and regression coverage.
-
-### v0.2 PR4 — Dart FFI + native packaging
-
-- public `CardScanProcessor`
-- `processBytes()` / `processFile()`
-- native status/error mapping via `CardScanProcessorException`
-- `CardScanProcessorOptions`, `ProcessorQuad`, `ProcessorPoint`, `ProcessorOutputFormat`
-- Android Gradle/CMake -> Cargo packaging
-- iOS/macOS CocoaPods/Xcode -> Cargo packaging
-- Darwin generated static archive consumed by the plugin Pod target
-- Flutter >=3.22 compatibility retained
-
-### v0.2 PR5 — integrated native flow
-
-Integrated example validated Camera and Gallery through the real Dart FFI/Rust processor path before the high-level API refactor.
-
-## Final v0.2 validation evidence
-
-Android physical validation:
-- Camera capture/process/render passed
-- output orientation fixed
-- frame ROI / warp behavior acceptable
-- zoom / flash / torch regressions passed
-- Gallery responsive loading passed
-- crop/back protection passed
-- Gallery perspective correction passed
-- color output passed
-
-Physical iPhone 11 validation:
-- app build/launch passed
-- Camera capture passed
-- Rust static archive build/link passed
-- Dart FFI -> Rust processing passed
-- processed output rendering passed
-- Gallery after isolate/refactor passed
-
-macOS validation:
-- generated macOS host build/launch passed
-- Rust archive build/link through plugin Pod target passed
-- native file picker can browse folders and select images
-- sandbox-safe temporary normalization passed
-- Gallery crop / FFI / Rust processing / perspective correction / preview passed
-
-CI run `32569564457` passed Flutter analyze/tests, Android native APK build, Rust format, Clippy, and Rust tests. All PR review threads were resolved before merge.
-
-## Important fixes learned during validation
+## Important validation lessons
 
 1. Camera JPEG/display orientation must be normalized before ROI mapping.
-2. Cyclic quad start order must not be allowed to introduce a 180-degree warp flip.
-3. Camera auto-detect should run inside the visible capture-frame ROI, not the full image.
-4. CPU-heavy image preparation and synchronous FFI should not run on Flutter's UI isolate.
-5. Darwin `-force_load` belongs to the plugin Pod target that owns the Rust build phase, not the Runner target.
-6. macOS sandbox-selected files must not be used as output locations for normalized/intermediate files.
-7. Desktop Gallery uses a desktop-native picker rather than mobile-oriented `image_picker`.
-8. Unified Camera/Gallery UX should switch sources above the crop/process pipeline; source selection must not fork processing behavior.
+2. Cyclic quad ordering must not introduce 180-degree warp flips.
+3. Camera auto-detect should run inside the visible capture-frame ROI.
+4. Heavy image preparation/FFI must not block Flutter's UI isolate.
+5. macOS sandbox-selected files are read-only inputs; intermediates belong in temporary storage.
+6. Unified Camera/Gallery source switching must happen above the shared crop/process pipeline.
+7. Exposure guidance cannot rely only on clipped-pixel fractions.
+8. A missing card detection must not be misreported as merely a small card.
+9. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
 
 ## Smart Capture roadmap
 
-The direction is card/OCR-specific capture quality rather than becoming a generic document scanner.
-
-- SC-00 — Unified Camera/Gallery entry: implementation in progress on `feature/sc00-camera-gallery-entry`.
-- SC-01 — Live card quality model and user guidance.
-- SC-02 — Formal frame-to-sensor geometry mapping and calibration evidence.
+- SC-00 — Unified Camera/Gallery entry: merged.
+- SC-01 — Live card quality model and advisory guidance: merged.
+- SC-02 — Formal frame-to-sensor geometry mapping and calibration evidence: in progress.
 - SC-03 — Blur and temporal stability detection.
 - SC-04 — Quality-gated auto capture.
 - SC-05 — Glare detection, including OCR-sensitive card regions.
@@ -204,20 +120,14 @@ The direction is card/OCR-specific capture quality rather than becoming a generi
 - SC-07 — Corner-confidence feedback UI.
 - SC-08 — Quality metadata in `CardCaptureResult`.
 - SC-09 — Capture behavior profiles (`ocr`, `fast`, `archival`, `manual`).
-- SC-10 — Optional platform-native scanner fallback; not a replacement for the custom card capture engine.
+- SC-10 — Optional platform-native scanner fallback.
 
 ## Next milestone
 
-Finish SC-00 CI/review and physical Camera -> Gallery -> crop -> process -> Camera-return regression validation. Then proceed with SC-01 through SC-04 on top of the existing v0.3 quality measurements.
+Finish SC-02 CI/review, then collect physical mapping evidence on representative Android/iOS devices. Continue to SC-03 temporal stability only after the live ROI mapping contract is stable.
 
-Keep quality analysis as measurements first; do not couple it to live auto-capture until the metrics are stable enough to calibrate with physical-device evidence.
-
-## Native build policy
-
-The package keeps Flutter >=3.22 compatibility, so native packaging uses the legacy FFI-plugin platform build layout rather than requiring Flutter 3.38+ Native Assets build hooks. No native binary is committed to git.
-
-Generated native build state such as `android/.cxx/`, generated example platform hosts, and `rust/target/` is ignored. `rust/Cargo.lock` remains committed for reproducible embedded native builds.
+Keep quality analysis and geometry deterministic and testable. Do not couple them to auto-capture until physical-device evidence supports the thresholds and mapping assumptions.
 
 ## Documentation policy
 
-Keep `docs/PROJECT_HANDOFF.md`, `docs/CODE_WALKTHROUGH.md`, and `docs/ROADMAP.md` synchronized for material architecture/native-processing changes.
+Keep `docs/PROJECT_HANDOFF.md`, `docs/CODE_WALKTHROUGH.md`, and `docs/ROADMAP.md` synchronized for material capture/geometry/native-processing changes.
