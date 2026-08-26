@@ -26,6 +26,25 @@ void main() {
     expect(coordinator.stableFrameCount, 2);
   });
 
+  test('recovers throttling when wall clock moves backward', () async {
+    var now = DateTime(2026, 1, 1, 12);
+    final coordinator = CardLiveCaptureCoordinator(
+      capture: () async => null,
+      analysisInterval: const Duration(milliseconds: 200),
+      clock: () => now,
+      stabilityTracker: CardCaptureStabilityTracker(
+        config: const CardCaptureStabilityConfig(requiredStableFrames: 2),
+      ),
+    );
+
+    await coordinator.submit(_sample());
+    now = now.subtract(const Duration(minutes: 5));
+    final accepted = await coordinator.submit(_sample(offset: .002));
+
+    expect(accepted, isNotNull);
+    expect(coordinator.stableFrameCount, 2);
+  });
+
   test('fires one package capture when quality and stability are ready', () async {
     var now = DateTime(2026, 1, 1);
     var captures = 0;
@@ -60,6 +79,41 @@ void main() {
     final afterCooldown = await coordinator.submit(_sample(offset: .004));
     expect(afterCooldown?.shouldCapture, isTrue);
     expect(captures, 2);
+  });
+
+  test('does not consume cooldown until a capture delegate exists', () async {
+    var now = DateTime(2026, 1, 1);
+    var captures = 0;
+    final coordinator = CardLiveCaptureCoordinator(
+      analysisInterval: Duration.zero,
+      clock: () => now,
+      stabilityTracker: CardCaptureStabilityTracker(
+        config: const CardCaptureStabilityConfig(requiredStableFrames: 1),
+      ),
+      autoCapturePolicy: CardAutoCapturePolicy(
+        config: const CardAutoCaptureConfig(
+          enabled: true,
+          cooldown: Duration(seconds: 1),
+        ),
+        clock: () => now,
+      ),
+    );
+
+    final withoutDelegate = await coordinator.submit(_sample());
+    expect(withoutDelegate?.shouldCapture, isTrue);
+    expect(captures, 0);
+
+    coordinator.attachCapture(() async {
+      captures += 1;
+      return null;
+    });
+    final dispatched = await coordinator.submit(_sample(offset: .001));
+
+    expect(dispatched?.shouldCapture, isTrue);
+    expect(captures, 1);
+
+    final cooling = await coordinator.submit(_sample(offset: .002));
+    expect(cooling?.state, CardAutoCaptureState.cooldown);
   });
 
   test('prevents re-entrant shutter while capture is in flight', () async {
