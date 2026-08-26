@@ -47,7 +47,7 @@ void main() {
     expect(decoded.height, 2);
   });
 
-  test('encodes neutral YUV420 frame without chroma artifacts', () {
+  test('encodes neutral tri-planar YUV420 frame', () {
     final frame = CardCameraFrame(
       width: 2,
       height: 2,
@@ -72,7 +72,6 @@ void main() {
     );
 
     final decoded = img.decodeJpg(adapter.encodeJpeg(frame, quality: 100));
-
     expect(decoded, isNotNull);
     for (final pixel in decoded!) {
       expect((pixel.r - pixel.g).abs(), lessThan(8));
@@ -80,7 +79,61 @@ void main() {
     }
   });
 
-  test('honors YUV row and pixel stride', () {
+  test('supports bi-planar YUV420 UV layout', () {
+    final frame = CardCameraFrame(
+      width: 2,
+      height: 2,
+      format: CardCameraFrameFormat.yuv420,
+      planes: [
+        CardCameraFramePlane(
+          bytes: Uint8List.fromList([100, 100, 100, 100]),
+          bytesPerRow: 2,
+          bytesPerPixel: 1,
+        ),
+        CardCameraFramePlane(
+          bytes: Uint8List.fromList([128, 128]),
+          bytesPerRow: 2,
+          bytesPerPixel: 2,
+        ),
+      ],
+    );
+
+    final decoded = img.decodeJpg(adapter.encodeJpeg(frame, quality: 100));
+    expect(decoded, isNotNull);
+    expect(decoded!.width, 2);
+    expect(decoded.height, 2);
+  });
+
+  test('honors Y plane pixel stride', () {
+    final frame = CardCameraFrame(
+      width: 2,
+      height: 1,
+      format: CardCameraFrameFormat.yuv420,
+      planes: [
+        CardCameraFramePlane(
+          bytes: Uint8List.fromList([64, 0, 192, 0]),
+          bytesPerRow: 4,
+          bytesPerPixel: 2,
+        ),
+        CardCameraFramePlane(
+          bytes: Uint8List.fromList([128]),
+          bytesPerRow: 1,
+          bytesPerPixel: 1,
+        ),
+        CardCameraFramePlane(
+          bytes: Uint8List.fromList([128]),
+          bytesPerRow: 1,
+          bytesPerPixel: 1,
+        ),
+      ],
+    );
+
+    final decoded = img.decodeJpg(adapter.encodeJpeg(frame, quality: 100));
+    expect(decoded, isNotNull);
+    expect(decoded!.getPixel(1, 0).r, greaterThan(decoded.getPixel(0, 0).r));
+  });
+
+  test('honors YUV row and chroma pixel stride', () {
     final frame = CardCameraFrame(
       width: 2,
       height: 2,
