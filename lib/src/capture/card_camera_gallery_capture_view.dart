@@ -15,7 +15,6 @@ import 'capture_confirmation_mode.dart';
 import 'capture_orientation_policy.dart';
 import 'card_capture_controller.dart';
 import 'card_capture_controls_config.dart';
-import 'card_capture_image.dart';
 import 'card_capture_result.dart';
 import 'card_capture_view.dart';
 
@@ -149,6 +148,9 @@ class _CardCameraGalleryCaptureViewState
       );
     }
 
+    final galleryShortcutAvailable = widget.showGalleryShortcut &&
+        widget.cameraConfirmationMode == CaptureConfirmationMode.none;
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -170,7 +172,7 @@ class _CardCameraGalleryCaptureViewState
           onCompleted: widget.onCompleted,
           onClose: widget.onClose,
         ),
-        if (widget.showGalleryShortcut)
+        if (galleryShortcutAvailable)
           _GalleryShortcut(
             busy: _pickingGallery,
             tooltip: widget.galleryLabels.pickAction,
