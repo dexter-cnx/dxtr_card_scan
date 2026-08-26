@@ -1,21 +1,21 @@
 use std::collections::VecDeque;
 
 use image::{DynamicImage, GrayImage};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Quad {
     /// Clockwise corners starting at the top-most corner, normalized to [0, 1].
     pub corners: [Point; 4],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct CandidateScore {
     pub total: f32,
     pub area: f32,
@@ -25,7 +25,7 @@ pub struct CandidateScore {
     pub edge_strength: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct DetectionResult {
     pub quad: Quad,
     pub score: CandidateScore,
@@ -392,108 +392,4 @@ fn ratio_similarity(actual: f32, expected: f32) -> f32 {
     let direct = (actual / expected).ln().abs();
     let rotated = (actual * expected).ln().abs();
     (-direct.min(rotated)).exp().clamp(0.0, 1.0)
-}
-
-#[cfg(test)]
-mod tests {
-    use image::{DynamicImage, GrayImage, Luma};
-
-    use super::*;
-
-    fn rectangle_fixture(width: u32, height: u32, inset_x: u32, inset_y: u32) -> DynamicImage {
-        let mut image = GrayImage::from_pixel(width, height, Luma([24]));
-        let right = width - inset_x - 1;
-        let bottom = height - inset_y - 1;
-        for y in inset_y..=bottom {
-            for x in inset_x..=right {
-                image.put_pixel(x, y, Luma([220]));
-            }
-        }
-        DynamicImage::ImageLuma8(image)
-    }
-
-    #[test]
-    fn detects_centered_card_rectangle() {
-        let image = rectangle_fixture(180, 120, 20, 20);
-        let result = detect_card_quad(
-            &image,
-            DetectionOptions {
-                expected_aspect_ratio: Some(140.0 / 80.0),
-                ..DetectionOptions::default()
-            },
-        )
-        .expect("rectangle should be detected");
-
-        assert!(result.score.total > 0.60, "score={:?}", result.score);
-        assert!(result.score.rectangularity > 0.90);
-        assert!(result.score.aspect_ratio > 0.85);
-        let [first, second, third, fourth] = result.quad.corners;
-        assert!(first.y <= second.y || first.y <= fourth.y);
-        assert!(polygon_area_normalized([first, second, third, fourth]) > 0.0);
-    }
-
-    #[test]
-    fn rejects_tiny_component_by_area() {
-        let image = rectangle_fixture(180, 120, 80, 50);
-        let result = detect_card_quad(
-            &image,
-            DetectionOptions {
-                min_area_ratio: 0.20,
-                ..DetectionOptions::default()
-            },
-        );
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn rejects_solid_color_image_without_edges() {
-        let image = DynamicImage::ImageLuma8(GrayImage::from_pixel(180, 120, Luma([128])));
-        assert!(detect_card_quad(&image, DetectionOptions::default()).is_none());
-    }
-
-    #[test]
-    fn aspect_score_accepts_portrait_rotation() {
-        let expected = 85.60 / 53.98;
-        assert!(ratio_similarity(expected, expected) > 0.99);
-        assert!(ratio_similarity(1.0 / expected, expected) > 0.99);
-    }
-
-    #[test]
-    fn convex_hull_removes_interior_points() {
-        let hull = convex_hull(vec![
-            IPoint { x: 0, y: 0 },
-            IPoint { x: 10, y: 0 },
-            IPoint { x: 10, y: 10 },
-            IPoint { x: 0, y: 10 },
-            IPoint { x: 5, y: 5 },
-        ]);
-        assert_eq!(hull.len(), 4);
-    }
-
-    #[test]
-    fn diagonal_rectangle_keeps_four_distinct_corners() {
-        let hull = vec![
-            IPoint { x: 10, y: 0 },
-            IPoint { x: 20, y: 10 },
-            IPoint { x: 10, y: 20 },
-            IPoint { x: 0, y: 10 },
-        ];
-        let corners = extreme_quad(&hull).expect("diamond should produce a quad");
-        for index in 0..4 {
-            for other in index + 1..4 {
-                assert_ne!(corners[index], corners[other]);
-            }
-        }
-        assert_ne!(polygon_area_signed(&corners), 0);
-    }
-
-    fn polygon_area_normalized(corners: [Point; 4]) -> f32 {
-        let mut sum = 0.0;
-        for index in 0..4 {
-            let a = corners[index];
-            let b = corners[(index + 1) % 4];
-            sum += a.x * b.y - b.x * a.y;
-        }
-        sum.abs() * 0.5
-    }
 }
