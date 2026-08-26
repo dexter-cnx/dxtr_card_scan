@@ -69,7 +69,6 @@ class CardLiveCameraSession {
 
     _camera = camera;
     _lastAcceptedAt = null;
-    _analysisInFlight = false;
     final generation = ++_generation;
     try {
       await camera.startImageStream((image) => _onImage(image, generation));
@@ -82,13 +81,15 @@ class CardLiveCameraSession {
   }
 
   /// Stops the owned image stream and invalidates in-flight result delivery.
+  ///
+  /// Existing analysis remains marked in flight until its future settles, so
+  /// a subsequent [start] cannot admit overlapping work from a new generation.
   Future<void> stop() async {
     final camera = _camera;
     if (camera == null) return;
 
     _camera = null;
     _lastAcceptedAt = null;
-    _analysisInFlight = false;
     ++_generation;
     coordinator.reset();
 
@@ -141,9 +142,7 @@ class CardLiveCameraSession {
         onError?.call(error, stackTrace);
       }
     } finally {
-      if (generation == _generation) {
-        _analysisInFlight = false;
-      }
+      _analysisInFlight = false;
     }
   }
 }
