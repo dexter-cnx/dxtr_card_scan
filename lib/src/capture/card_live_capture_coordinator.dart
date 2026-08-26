@@ -75,8 +75,11 @@ class CardLiveCaptureCoordinator {
   Future<CardAutoCaptureDecision?> submit(CardLiveAnalysisSample sample) async {
     final now = _clock();
     final previous = _lastAcceptedAt;
-    if (previous != null && now.difference(previous) < analysisInterval) {
-      return null;
+    if (previous != null) {
+      final elapsed = now.difference(previous);
+      if (!elapsed.isNegative && elapsed < analysisInterval) {
+        return null;
+      }
     }
     _lastAcceptedAt = now;
 
@@ -95,6 +98,7 @@ class CardLiveCaptureCoordinator {
     }
 
     _captureInFlight = true;
+    _autoCapturePolicy.markCaptureDispatched();
     try {
       await capture();
     } finally {
