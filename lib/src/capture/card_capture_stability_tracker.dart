@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../processor/card_scan_detection.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../processor/card_scan_quality_analysis.dart';
@@ -26,7 +28,9 @@ class CardCaptureStabilityConfig {
         assert(
           minimumDetectionConfidence >= 0 && minimumDetectionConfidence <= 1,
         ),
-        assert(maximumCornerDisplacement >= 0 && maximumCornerDisplacement <= 1),
+        assert(
+          maximumCornerDisplacement >= 0 && maximumCornerDisplacement <= 1,
+        ),
         assert(maximumCoverageDelta >= 0 && maximumCoverageDelta <= 1);
 
   final int requiredStableFrames;
@@ -184,15 +188,6 @@ class CardCaptureStabilityTracker {
       if (squared > maximumSquared) maximumSquared = squared;
     }
 
-    return _sqrt(maximumSquared);
-  }
-
-  double _sqrt(double value) {
-    if (value == 0) return 0;
-    var estimate = value >= 1 ? value : 1.0;
-    for (var iteration = 0; iteration < 12; iteration += 1) {
-      estimate = (estimate + value / estimate) / 2;
-    }
-    return estimate;
+    return math.sqrt(maximumSquared);
   }
 }
