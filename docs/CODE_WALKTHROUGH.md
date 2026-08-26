@@ -4,7 +4,25 @@ This document tracks the implementation as the package evolves.
 
 ## Capture geometry foundation
 
-`NormalizedRect`, `PreviewGeometry`, and `CapturedImageTransform` keep Camera/Gallery geometry in normalized source-image coordinates. `CaptureFrame`, orientation policy, capture-frame styling and crop styling remain Flutter-owned.
+`NormalizedRect`, `PreviewGeometry`, `CapturedImageTransform`, and `CameraGeometryMapper` keep Camera/Gallery geometry in explicit normalized coordinate systems. `CaptureFrame`, orientation policy, capture-frame styling and crop styling remain Flutter-owned.
+
+### `lib/src/geometry/camera_geometry_mapper.dart`
+
+`CameraGeometryMapper` is the SC-02 contract for mapping a viewport-space frame or live-analysis ROI into normalized raw sensor/image coordinates.
+
+It models four pieces explicitly:
+- `viewportSize` — Flutter preview layout size.
+- `sensorSize` — raw camera image/sensor dimensions.
+- `fit` — preview composition (`BoxFit.cover` by default, `contain` supported for letterboxed layouts).
+- `displayedCropRegion` — normalized crop in orientation-normalized sensor space, used for platform crop regions and digital zoom.
+
+Orientation and preview mirroring are handled by `CapturedImageTransform`. The mapper first resolves the visible fitted preview, maps the viewport rectangle into the effective displayed crop, expands that local crop back into displayed sensor coordinates, then transforms it to raw sensor coordinates.
+
+Public outputs:
+- `viewportRectToSensor()` -> `NormalizedRect` in raw sensor/image space.
+- `viewportRectToSensorPixels()` -> raw pixel `Rect`.
+
+A viewport rectangle that lies completely outside a `BoxFit.contain` preview is rejected rather than silently mapping letterbox padding into the sensor. Partial overlap is clipped to the visible preview. SC-03/SC-04 must consume this mapper so live quality analysis and final capture ROI use one geometry contract.
 
 ## Rust processing
 
@@ -181,5 +199,6 @@ Generated build state such as `android/.cxx/`, generated example platform hosts,
 ## Status
 
 - v0.2 is complete and merged.
-- PR #9 moves Camera/Gallery ownership from Example into the package before v0.3 Quality analysis.
-- PR #9 still requires CI/review and physical Camera/Gallery regression validation before merge.
+- SC-00 unified Camera/Gallery entry is merged.
+- SC-01 advisory live-quality assessment model is merged.
+- SC-02 introduces the public frame-to-sensor geometry contract used by later live analysis and auto-capture work.
