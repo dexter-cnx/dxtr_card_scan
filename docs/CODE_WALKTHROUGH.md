@@ -4,99 +4,70 @@ This document tracks the implementation as the package evolves.
 
 ## Capture geometry foundation
 
-`NormalizedRect`, `PreviewGeometry`, `CapturedImageTransform`, and `CameraGeometryMapper` keep Camera/Gallery geometry in explicit normalized coordinate systems. `CaptureFrame`, orientation policy, capture-frame styling and crop styling remain Flutter-owned.
+`CameraGeometryMapper` is the SC-02 contract for mapping viewport/capture-frame geometry into raw sensor/image coordinates while accounting for preview `BoxFit`, orientation/mirroring, and digital-zoom/platform crop regions.
 
-### `lib/src/geometry/camera_geometry_mapper.dart`
+Live analysis and final capture must use the same mapping contract.
 
-`CameraGeometryMapper` maps viewport-space frame/live-analysis ROIs into normalized raw sensor/image coordinates while accounting for preview `BoxFit`, orientation/mirroring, and `displayedCropRegion` digital zoom/platform crop. Letterbox padding is not treated as sensor content.
+## Smart Capture
 
-## Smart Capture quality and stability
+### Quality — `card_scan_quality_analysis.dart`
 
-### `lib/src/processor/card_scan_quality_analysis.dart`
+SC-01 interprets Rust blur, exposure, card coverage and detection-confidence measurements into advisory issues. Aggregate score is not a production auto-capture threshold by default.
 
-SC-01 interprets deterministic Rust quality measurements without triggering capture. `CardCaptureQualityAssessment` combines blur, exposure, card coverage and detector confidence into advisory issues and a conservative score.
+### Stability — `card_capture_stability_tracker.dart`
 
-### `lib/src/capture/card_capture_stability_tracker.dart`
+SC-03 tracks sharpness-gated temporal stability using corresponding quad-corner displacement and card-coverage drift. Cyclic detector start-corner changes are aligned before movement is calculated.
 
-SC-03 adds deterministic temporal stability over quality plus `CardScanDetection` quad geometry. It gates on sharpness/detection confidence, tracks coverage drift, and aligns cyclic quad corner order before calculating maximum corresponding-corner displacement.
+### Auto-capture policy — `card_auto_capture_policy.dart`
 
-`CardCaptureStabilitySnapshot` exposes stable-frame count, progress, movement measurements, blocking issue, and `isStable`.
+SC-04 exposes `searching`, `detected`, `ready`, and `cooldown`. Auto capture is disabled by default. Policy evaluation does not invoke a camera controller; cooldown is committed only when a capture dispatch actually occurs.
 
-### `lib/src/capture/card_auto_capture_policy.dart`
+### Live coordinator — `card_live_capture_coordinator.dart`
 
-SC-04 composes SC-01 quality and SC-03 stability into a pure state machine:
-- `searching` — no trustworthy detection
-- `detected` — card detected but quality/stability gate not ready
-- `ready` — explicit quality issues are clear and stability is ready
-- `cooldown` — a prior enabled auto-capture decision is inside its cooldown window
+`CardLiveCaptureCoordinator`:
+- throttles accepted analyzed samples
+- composes SC-01 quality + SC-03 stability + SC-04 policy
+- dispatches through an attached package capture delegate
+- prevents re-entrant shutter dispatch
+- recovers from backward wall-clock corrections
 
-`CardAutoCaptureConfig.enabled` defaults to `false`, preserving manual capture behavior. `minimumQualityScore` defaults to zero because the current SC-01 aggregate score contains card coverage and is not yet calibrated as a universal readiness threshold. Applications can opt into a non-zero score gate after collecting physical evidence.
+It accepts already-analyzed ROI samples and remains independent from raw camera formats.
 
-`CardAutoCapturePolicy.evaluate()` returns `CardAutoCaptureDecision`; it never invokes `CardCaptureController` and never owns camera lifecycle. When enabled, a ready decision emits `shouldCapture = true`, then subsequent evaluations remain in cooldown until the configured duration expires.
+### Raw stream adapter — `card_camera_image_adapter.dart`
 
-The remaining SC-04 integration step is throttled camera image analysis wired to the package-owned camera surface using the SC-02 geometry contract.
+`CardCameraImageAdapter` bridges Flutter camera-plugin stream frames to the encoded-image Rust ABI.
+
+Public DTOs:
+- `CardCameraFrameFormat`
+- `CardCameraFramePlane`
+- `CardCameraFrame`
+
+`fromCameraImage()` copies plugin planes into an isolate-safe DTO. Supported formats are YUV420 and BGRA8888.
+
+`encodeJpeg()`:
+1. decodes the raw planes while honoring row stride and pixel stride
+2. crops a `NormalizedRect` expressed in raw-frame coordinates
+3. encodes only the ROI as JPEG for Rust quality/detection analysis
+
+The adapter intentionally does not rotate or mirror the stream frame. Preview-to-stream orientation must be resolved through the explicit SC-02 geometry contract and validated on physical Android/iOS devices.
 
 ## Rust processing
 
-### `rust/src/model.rs`
-`ProcessorOptions` covers orientation, raw ROI, auto detection/manual quad, bounded warp size, OCR enhancement, grayscale, resize, and JPEG/PNG output.
+The Rust processor owns deterministic image processing and exposes C ABI entry points for processing, detection and quality analysis. Rust image APIs expect encoded image bytes; raw `CameraImage` planes must first pass through the stream adapter.
 
-### `rust/src/processor.rs`
-Pipeline:
-1. decode
-2. quantize raw ROI
-3. normalize orientation
-4. rotate/crop ROI
-5. detect or consume perspective quad
-6. perspective warp/crop
-7. optional OCR enhancement/grayscale
-8. optional resize
-9. encode
+## Package-owned capture
 
-### `rust/src/detection.rs`
-Deterministic classical-CV detector: grayscale, blur, Sobel, adaptive threshold, flat-image rejection, connected components, convex hull, distinct-corner quad approximation, scoring.
+`CardCaptureView` owns camera lifecycle, preview, controls, capture, EXIF normalization, ROI mapping, rectification, confirmation and final processing. `CardGalleryCaptureView`/`CardGalleryCropView` own Gallery flows.
 
-### `rust/src/warp.rs`
-Deterministic projective rectification with cyclic-corner handling, long-edge-first orientation, source-top preservation, bilinear sampling, allocation bounds, and degenerate/singular rejection.
-
-### `rust/src/ffi.rs`
-Stable C ABI:
-- `card_scan_process`
-- `card_scan_result_free`
-
-Input is encoded image bytes plus UTF-8 JSON options. Output/error memory remains Rust-owned until the result is freed.
-
-## Dart FFI boundary
-
-`CardScanProcessor` owns Dart-side FFI allocation/copy/free behavior and exposes `processBytes()` / `processFile()` while mapping native failures to `CardScanProcessorException`.
-
-Library loading:
-- Android: `DynamicLibrary.open('libdxtr_card_scan_processor.so')`
-- iOS/macOS: `DynamicLibrary.process()`
-
-## Package-owned high-level capture pipeline
-
-`CardCaptureView` owns Camera lifecycle, preview, controls, orientation, capture, EXIF normalization, ROI mapping, rectification, confirmation and final processing. `CardGalleryCaptureView` / `CardGalleryCropView` own Gallery selection/crop/process behavior.
-
-`CardCaptureResult` exposes `original`, `cropped`, `processed`, and `sourceRoi`.
-
-## Native packaging
-
-Android links the Rust staticlib into `libdxtr_card_scan_processor.so`. iOS/macOS pod targets build and force-load the generated Rust archive.
+The upcoming live-stream wiring stays inside `CardCaptureView` and will feed analyzed samples into `CardLiveCaptureCoordinator` rather than exposing camera-plugin ownership to host applications.
 
 ## Validation tooling
 
-`make install-hooks` installs the tracked pre-push guard. CI covers Flutter analyze/tests, Example analyze/build and Rust format/Clippy/tests.
-
-## Naming rule
-
-`Dxtr`/`dxtr` belongs only to package/repository identity. Public Dart domain classes remain neutral.
+CI covers Flutter analyze/tests, Example analyze/build and Rust format/Clippy/tests. Physical calibration remains mandatory before auto-capture defaults are enabled.
 
 ## Status
 
-- v0.2 is complete and merged.
-- SC-00 unified Camera/Gallery entry is merged.
-- SC-01 advisory live-quality assessment model is merged.
-- SC-02 frame-to-sensor geometry is merged.
-- SC-03 blur + temporal stability is merged.
-- SC-04 quality-gated decision/state/cooldown policy is in progress; live camera frame integration remains.
+- SC-00 through SC-03 merged.
+- SC-04 policy merged via PR #18.
+- SC-04 live coordinator merged via PR #19.
+- Current increment adds raw CameraImage conversion + ROI JPEG encoding.
