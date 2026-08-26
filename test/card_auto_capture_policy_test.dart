@@ -34,7 +34,7 @@ void main() {
     expect(decision.shouldCapture, isFalse);
   });
 
-  test('enabled policy emits capture then cooldown', () {
+  test('enabled policy enters cooldown only after dispatch is marked', () {
     var now = DateTime(2026, 8, 26, 10);
     final policy = CardAutoCapturePolicy(
       config: const CardAutoCaptureConfig(
@@ -45,11 +45,19 @@ void main() {
     );
 
     final first = policy.evaluate(quality: _quality(), stability: _stable());
+    final stillReady = policy.evaluate(
+      quality: _quality(),
+      stability: _stable(),
+    );
+
+    expect(first.shouldCapture, isTrue);
+    expect(stillReady.shouldCapture, isTrue);
+
+    policy.markCaptureDispatched();
     final cooling = policy.evaluate(quality: _quality(), stability: _stable());
     now = now.add(const Duration(milliseconds: 801));
     final next = policy.evaluate(quality: _quality(), stability: _stable());
 
-    expect(first.shouldCapture, isTrue);
     expect(cooling.state, CardAutoCaptureState.cooldown);
     expect(cooling.shouldCapture, isFalse);
     expect(next.shouldCapture, isTrue);
