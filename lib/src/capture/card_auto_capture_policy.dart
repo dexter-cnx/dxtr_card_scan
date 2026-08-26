@@ -11,16 +11,23 @@ enum CardAutoCaptureState {
 
 /// Configuration for optional quality-gated auto capture.
 ///
-/// Auto capture remains disabled by default for backward compatibility.
+/// Auto capture remains disabled by default for backward compatibility. The
+/// aggregate quality-score gate is also disabled by default because the SC-01
+/// score includes card coverage and still requires physical calibration.
 class CardAutoCaptureConfig {
   const CardAutoCaptureConfig({
     this.enabled = false,
-    this.minimumQualityScore = .88,
+    this.minimumQualityScore = 0,
     this.cooldown = const Duration(milliseconds: 800),
   }) : assert(minimumQualityScore >= 0 && minimumQualityScore <= 1);
 
   final bool enabled;
+
+  /// Optional aggregate score gate. Keep at zero to rely on explicit quality
+  /// issues plus temporal stability until calibrated evidence supports a score
+  /// threshold.
   final double minimumQualityScore;
+
   final Duration cooldown;
 }
 
