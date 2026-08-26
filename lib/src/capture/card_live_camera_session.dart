@@ -69,6 +69,7 @@ class CardLiveCameraSession {
 
     _camera = camera;
     _lastAcceptedAt = null;
+    _analysisInFlight = false;
     final generation = ++_generation;
     try {
       await camera.startImageStream((image) => _onImage(image, generation));
@@ -87,6 +88,7 @@ class CardLiveCameraSession {
 
     _camera = null;
     _lastAcceptedAt = null;
+    _analysisInFlight = false;
     ++_generation;
     coordinator.reset();
 
@@ -111,12 +113,12 @@ class CardLiveCameraSession {
       }
     }
 
-    final roi = roiResolver(image);
-    if (roi == null) return;
-
-    _lastAcceptedAt = now;
-    _analysisInFlight = true;
     try {
+      final roi = roiResolver(image);
+      if (roi == null) return;
+
+      _lastAcceptedAt = now;
+      _analysisInFlight = true;
       final frame = _adapter.fromCameraImage(image);
       unawaited(_analyze(frame, roi, generation));
     } catch (error, stackTrace) {
