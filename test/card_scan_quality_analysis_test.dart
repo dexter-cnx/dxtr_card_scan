@@ -35,7 +35,7 @@ void main() {
         score: .40,
       ),
       exposure: CardScanExposureQuality(
-        meanLuma: .30,
+        meanLuma: .20,
         darkFraction: .40,
         brightFraction: .02,
         score: .50,
@@ -51,13 +51,81 @@ void main() {
       containsAll(<CardCaptureQualityIssue>{
         CardCaptureQualityIssue.blurry,
         CardCaptureQualityIssue.tooDark,
-        CardCaptureQualityIssue.cardTooSmall,
         CardCaptureQualityIssue.lowDetectionConfidence,
       }),
+    );
+    expect(
+      assessment.issues,
+      isNot(contains(CardCaptureQualityIssue.cardTooSmall)),
     );
     expect(assessment.primaryIssue, CardCaptureQualityIssue.blurry);
     expect(assessment.hasIssues, isTrue);
     expect(assessment.score, .20);
+  });
+
+  test('mean luminance catches unclipped underexposure', () {
+    const analysis = CardScanQualityAnalysis(
+      blur: CardScanBlurQuality(laplacianVariance: 120, score: .85),
+      exposure: CardScanExposureQuality(
+        meanLuma: .18,
+        darkFraction: 0,
+        brightFraction: 0,
+        score: .36,
+      ),
+      cardCoverage: .50,
+      detectionConfidence: .90,
+    );
+
+    final assessment = CardCaptureQualityAssessment.fromAnalysis(analysis);
+
+    expect(assessment.primaryIssue, CardCaptureQualityIssue.tooDark);
+  });
+
+  test('mean luminance catches unclipped overexposure', () {
+    const analysis = CardScanQualityAnalysis(
+      blur: CardScanBlurQuality(laplacianVariance: 120, score: .85),
+      exposure: CardScanExposureQuality(
+        meanLuma: .86,
+        darkFraction: 0,
+        brightFraction: 0,
+        score: .28,
+      ),
+      cardCoverage: .50,
+      detectionConfidence: .90,
+    );
+
+    final assessment = CardCaptureQualityAssessment.fromAnalysis(analysis);
+
+    expect(assessment.primaryIssue, CardCaptureQualityIssue.tooBright);
+  });
+
+  test('missing detection reports confidence rather than card size', () {
+    const analysis = CardScanQualityAnalysis(
+      blur: CardScanBlurQuality(laplacianVariance: 120, score: .85),
+      exposure: CardScanExposureQuality(
+        meanLuma: .50,
+        darkFraction: .02,
+        brightFraction: .02,
+        score: .96,
+      ),
+      cardCoverage: 0,
+      detectionConfidence: 0,
+    );
+
+    final assessment = CardCaptureQualityAssessment.fromAnalysis(analysis);
+
+    expect(
+      assessment.issues,
+      contains(CardCaptureQualityIssue.lowDetectionConfidence),
+    );
+    expect(
+      assessment.issues,
+      isNot(contains(CardCaptureQualityIssue.cardTooSmall)),
+    );
+    expect(
+      assessment.primaryIssue,
+      CardCaptureQualityIssue.lowDetectionConfidence,
+    );
   });
 
   test('quality thresholds are configurable', () {
@@ -92,9 +160,12 @@ void main() {
       strictAssessment.issues,
       containsAll(<CardCaptureQualityIssue>{
         CardCaptureQualityIssue.blurry,
-        CardCaptureQualityIssue.cardTooSmall,
         CardCaptureQualityIssue.lowDetectionConfidence,
       }),
+    );
+    expect(
+      strictAssessment.issues,
+      isNot(contains(CardCaptureQualityIssue.cardTooSmall)),
     );
   });
 }
