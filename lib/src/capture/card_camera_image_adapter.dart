@@ -57,6 +57,14 @@ class CardCameraImageAdapter {
         ),
     };
 
+    if (format == CardCameraFrameFormat.yuv420 &&
+        image.planes.length != 2 &&
+        image.planes.length != 3) {
+      throw UnsupportedError(
+        'Unsupported YUV420 plane layout: ${image.planes.length} planes',
+      );
+    }
+
     return CardCameraFrame(
       width: image.width,
       height: image.height,
@@ -91,11 +99,15 @@ class CardCameraImageAdapter {
       throw ArgumentError.value(quality, 'quality', 'must be in [1, 100]');
     }
 
+    final bounds = _quantizeRoi(frame, roi);
     final source = switch (frame.format) {
-      CardCameraFrameFormat.yuv420 => _decodeYuv420(frame),
-      CardCameraFrameFormat.bgra8888 => _decodeBgra8888(frame),
+      CardCameraFrameFormat.yuv420 => _decodeYuv420(frame, bounds),
+      CardCameraFrameFormat.bgra8888 => _decodeBgra8888(frame, bounds),
     };
+    return Uint8List.fromList(img.encodeJpg(source, quality: quality));
+  }
 
+  _PixelRoi _quantizeRoi(CardCameraFrame frame, NormalizedRect roi) {
     final left = (roi.left * frame.width)
         .floor()
         .clamp(0, frame.width - 1)
@@ -112,17 +124,10 @@ class CardCameraImageAdapter {
         .ceil()
         .clamp(top + 1, frame.height)
         .toInt();
-    final cropped = img.copyCrop(
-      source,
-      x: left,
-      y: top,
-      width: right - left,
-      height: bottom - top,
-    );
-    return Uint8List.fromList(img.encodeJpg(cropped, quality: quality));
+    return _PixelRoi(left, top, right, bottom);
   }
 
-  img.Image _decodeBgra8888(CardCameraFrame frame) {
+  img.Image _decodeBgra8888(CardCameraFrame frame, _PixelRoi roi) {
     if (frame.planes.length != 1) {
       throw const FormatException('BGRA8888 requires exactly one plane');
     }
@@ -132,17 +137,18 @@ class CardCameraImageAdapter {
       throw const FormatException('BGRA8888 requires at least 4 bytes per pixel');
     }
 
-    final output = img.Image(width: frame.width, height: frame.height);
-    for (var y = 0; y < frame.height; y += 1) {
+    final output = img.Image(width: roi.width, height: roi.height);
+    for (var y = roi.top; y < roi.bottom; y += 1) {
       final row = y * plane.bytesPerRow;
-      for (var x = 0; x < frame.width; x += 1) {
+      final outY = y - roi.top;
+      for (var x = roi.left; x < roi.right; x += 1) {
         final index = row + x * bytesPerPixel;
         if (index + 3 >= plane.bytes.length) {
           throw const FormatException('BGRA8888 plane is shorter than declared');
         }
         output.setPixelRgba(
-          x,
-          y,
+          x - roi.left,
+          outY,
           plane.bytes[index + 2],
           plane.bytes[index + 1],
           plane.bytes[index],
@@ -153,41 +159,83 @@ class CardCameraImageAdapter {
     return output;
   }
 
-  img.Image _decodeYuv420(CardCameraFrame frame) {
-    if (frame.planes.length != 3) {
-      throw const FormatException('YUV420 requires Y, U, and V planes');
+  img.Image _decodeYuv420(CardCameraFrame frame, _PixelRoi roi) {
+    if (frame.planes.length != 2 && frame.planes.length != 3) {
+      throw const FormatException('YUV420 requires 2 or 3 planes');
     }
     final yPlane = frame.planes[0];
-    final uPlane = frame.planes[1];
-    final vPlane = frame.planes[2];
-    final uvPixelStride = uPlane.bytesPerPixel ?? 1;
-    final vPixelStride = vPlane.bytesPerPixel ?? uvPixelStride;
+    final yPixelStride = yPlane.bytesPerPixel ?? 1;
+    final output = img.Image(width: roi.width, height: roi.height);
 
-    final output = img.Image(width: frame.width, height: frame.height);
-    for (var y = 0; y < frame.height; y += 1) {
+    for (var y = roi.top; y < roi.bottom; y += 1) {
       final uvY = y >> 1;
-      for (var x = 0; x < frame.width; x += 1) {
+      final outY = y - roi.top;
+      for (var x = roi.left; x < roi.right; x += 1) {
         final uvX = x >> 1;
-        final yIndex = y * yPlane.bytesPerRow + x;
-        final uIndex = uvY * uPlane.bytesPerRow + uvX * uvPixelStride;
-        final vIndex = uvY * vPlane.bytesPerRow + uvX * vPixelStride;
-        if (yIndex >= yPlane.bytes.length ||
-            uIndex >= uPlane.bytes.length ||
-            vIndex >= vPlane.bytes.length) {
-          throw const FormatException('YUV420 plane is shorter than declared');
+        final yIndex = y * yPlane.bytesPerRow + x * yPixelStride;
+        if (yIndex >= yPlane.bytes.length) {
+          throw const FormatException('YUV420 Y plane is shorter than declared');
         }
 
+        final (uValue, vValue) = frame.planes.length == 2
+            ? _readBiPlanarUv(frame.planes[1], uvX, uvY)
+            : _readTriPlanarUv(frame.planes[1], frame.planes[2], uvX, uvY);
+
         final yValue = yPlane.bytes[yIndex].toDouble();
-        final u = uPlane.bytes[uIndex] - 128.0;
-        final v = vPlane.bytes[vIndex] - 128.0;
+        final u = uValue - 128.0;
+        final v = vValue - 128.0;
         final r = (yValue + 1.402 * v).round().clamp(0, 255);
         final g = (yValue - 0.344136 * u - 0.714136 * v)
             .round()
             .clamp(0, 255);
         final b = (yValue + 1.772 * u).round().clamp(0, 255);
-        output.setPixelRgb(x, y, r, g, b);
+        output.setPixelRgb(x - roi.left, outY, r, g, b);
       }
     }
     return output;
   }
+
+  (int, int) _readTriPlanarUv(
+    CardCameraFramePlane uPlane,
+    CardCameraFramePlane vPlane,
+    int uvX,
+    int uvY,
+  ) {
+    final uPixelStride = uPlane.bytesPerPixel ?? 1;
+    final vPixelStride = vPlane.bytesPerPixel ?? 1;
+    final uIndex = uvY * uPlane.bytesPerRow + uvX * uPixelStride;
+    final vIndex = uvY * vPlane.bytesPerRow + uvX * vPixelStride;
+    if (uIndex >= uPlane.bytes.length || vIndex >= vPlane.bytes.length) {
+      throw const FormatException('YUV420 chroma plane is shorter than declared');
+    }
+    return (uPlane.bytes[uIndex], vPlane.bytes[vIndex]);
+  }
+
+  (int, int) _readBiPlanarUv(
+    CardCameraFramePlane uvPlane,
+    int uvX,
+    int uvY,
+  ) {
+    final pixelStride = uvPlane.bytesPerPixel ?? 2;
+    if (pixelStride < 2) {
+      throw const FormatException('Bi-planar YUV420 requires UV pixel stride >= 2');
+    }
+    final index = uvY * uvPlane.bytesPerRow + uvX * pixelStride;
+    if (index + 1 >= uvPlane.bytes.length) {
+      throw const FormatException('YUV420 UV plane is shorter than declared');
+    }
+    return (uvPlane.bytes[index], uvPlane.bytes[index + 1]);
+  }
+}
+
+class _PixelRoi {
+  const _PixelRoi(this.left, this.top, this.right, this.bottom);
+
+  final int left;
+  final int top;
+  final int right;
+  final int bottom;
+
+  int get width => right - left;
+  int get height => bottom - top;
 }
