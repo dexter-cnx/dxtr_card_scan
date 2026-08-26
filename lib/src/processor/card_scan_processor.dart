@@ -146,7 +146,23 @@ class CardScanProcessor {
     return detectBytes(bytes);
   }
 
+  /// Runs quality measurements and card detection in one native pass.
+  CardScanFrameAnalysis analyzeFrameBytes(Uint8List input) {
+    final decoded = _analyzeQualityJson(input);
+    return CardScanFrameAnalysis.fromJson(decoded);
+  }
+
   CardScanQualityAnalysis analyzeQualityBytes(Uint8List input) {
+    final decoded = _analyzeQualityJson(input);
+    return CardScanQualityAnalysis.fromJson(decoded);
+  }
+
+  Future<CardScanQualityAnalysis> analyzeQualityFile(String path) async {
+    final bytes = await File(path).readAsBytes();
+    return analyzeQualityBytes(bytes);
+  }
+
+  Map<String, Object?> _analyzeQualityJson(Uint8List input) {
     if (input.isEmpty) {
       throw ArgumentError('input image must not be empty');
     }
@@ -156,17 +172,10 @@ class CardScanProcessor {
       inputPtr.asTypedList(input.length).setAll(0, input);
       final output = _copyResult(_analyzeQuality(inputPtr, input.length));
       final decoded = jsonDecode(utf8.decode(output));
-      return CardScanQualityAnalysis.fromJson(
-        (decoded as Map<Object?, Object?>).cast<String, Object?>(),
-      );
+      return (decoded as Map<Object?, Object?>).cast<String, Object?>();
     } finally {
       calloc.free(inputPtr);
     }
-  }
-
-  Future<CardScanQualityAnalysis> analyzeQualityFile(String path) async {
-    final bytes = await File(path).readAsBytes();
-    return analyzeQualityBytes(bytes);
   }
 
   Uint8List _copyResult(Pointer<_NativeCardScanResult> resultPtr) {

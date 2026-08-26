@@ -13,21 +13,15 @@ const SHARPNESS_NORMALIZATION: f32 = 400.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct BlurMeasurement {
-    /// Variance of the 4-neighbour Laplacian. Higher values indicate more edge detail.
     pub laplacian_variance: f32,
-    /// Normalized [0, 1] sharpness score derived from Laplacian variance.
     pub score: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct ExposureMeasurement {
-    /// Mean luminance normalized to [0, 1].
     pub mean_luma: f32,
-    /// Fraction of pixels close to black.
     pub dark_fraction: f32,
-    /// Fraction of pixels close to white.
     pub bright_fraction: f32,
-    /// Normalized [0, 1] exposure-quality measurement.
     pub score: f32,
 }
 
@@ -35,10 +29,9 @@ pub struct ExposureMeasurement {
 pub struct QualityAnalysis {
     pub blur: BlurMeasurement,
     pub exposure: ExposureMeasurement,
-    /// Fraction of the analysis image covered by the detected card quadrilateral.
     pub card_coverage: f32,
-    /// Total confidence reported by the package's hybrid card detector.
     pub detection_confidence: f32,
+    pub detection: Option<DetectionResult>,
 }
 
 pub fn analyze_quality(image: &DynamicImage) -> QualityAnalysis {
@@ -56,6 +49,7 @@ pub fn analyze_quality(image: &DynamicImage) -> QualityAnalysis {
             .as_ref()
             .map(|result| result.score.total.clamp(0.0, 1.0))
             .unwrap_or(0.0),
+        detection,
     }
 }
 

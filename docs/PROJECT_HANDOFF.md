@@ -29,8 +29,9 @@ Repository: `dexter-cnx/dxtr_card_scan`
 - SC-03 blur + temporal stability — PR #17, `822bacd31832307dda27c4ea70115d441ab0846f`
 - SC-04 quality-gated auto-capture policy — PR #18, `e10bdbe282ce9476852520bd71421033da0b8888`
 - SC-04 live capture coordinator — PR #19, `2daf3d0bcac573e98806511922e1282a597a8667`
+- SC-04 raw CameraImage adapter — PR #20, `71eaf99e437c243aa1069d863930b7d376a97e21`
 
-Current branch: `feature/sc04-camera-image-adapter`.
+Current branch: `feature/sc04-live-stream-wiring`.
 
 ## Smart Capture contracts
 
@@ -54,36 +55,33 @@ Throttle recovers from backward wall-clock corrections instead of freezing until
 
 ### SC-04 raw CameraImage adapter
 
-Current branch adds `CardCameraImageAdapter` plus isolate-safe `CardCameraFrame`/`CardCameraFramePlane` DTOs.
+`CardCameraImageAdapter` plus isolate-safe `CardCameraFrame`/`CardCameraFramePlane` DTOs support BGRA8888, planar YUV420 and bi-planar YUV420 while honoring row/pixel strides. ROI bounds are quantized before conversion so only the requested raw-frame ROI is decoded and JPEG-encoded for Rust analysis.
 
-Supported raw formats:
-- YUV420 with independent row/pixel strides
-- BGRA8888 with row stride
+The adapter deliberately does **not** rotate or mirror. Its ROI is expected to already be in raw-frame coordinates according to the SC-02 contract.
 
-The adapter:
-1. copies `CameraImage` planes into an isolate-safe DTO
-2. decodes the raw frame deterministically
-3. crops the normalized raw-frame ROI
-4. JPEG-encodes only that ROI for the existing Rust quality/detection ABI
+### SC-04 live frame analyzer
 
-The adapter deliberately does **not** rotate or mirror. Its ROI is already expected to be in raw-frame coordinates according to the SC-02 contract. Android/iOS stream orientation and preview-to-stream mapping still require physical-device validation before automatic live streaming is enabled by default.
+Current branch adds `CardLiveFrameAnalyzer`. It accepts a copied `CardCameraFrame` plus mapped `NormalizedRect`, then runs ROI conversion/JPEG encoding and Rust quality/detection on a worker isolate. It returns `CardLiveAnalysisSample` ready for `CardLiveCaptureCoordinator` without blocking the camera/UI isolate.
+
+Android/iOS stream orientation and preview-to-stream mapping still require physical-device validation before automatic live streaming is enabled by default.
 
 ## Important validation lessons
 
 1. Camera JPEG/display orientation must be normalized before final ROI mapping.
 2. Live `CameraImage` bytes are raw YUV/BGRA, not encoded image bytes; never send raw planes directly to Rust decode APIs.
-3. YUV row stride and chroma pixel stride must be honored.
-4. Cyclic quad ordering must not create false stability motion.
-5. Cooldown starts only after a shutter dispatch is accepted.
-6. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
+3. YUV row stride, luminance pixel stride, chroma pixel stride and bi-planar layouts must be honored.
+4. Decode only the mapped ROI for live cadence; do not decode a full high-resolution frame before cropping.
+5. Cyclic quad ordering must not create false stability motion.
+6. Cooldown starts only after a shutter dispatch is accepted.
+7. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
 
 ## Next milestone
 
-Finish CI/review for the raw CameraImage adapter. Then wire a throttled `startImageStream()` path in `CardCaptureView` that:
+Wire a throttled `startImageStream()` path in `CardCaptureView`:
 
-`CameraImage -> CardCameraImageAdapter -> mapped ROI JPEG -> Rust quality/detection -> CardLiveCaptureCoordinator -> package shutter`
+`CameraImage -> copied CardCameraFrame -> SC-02 raw ROI -> CardLiveFrameAnalyzer -> CardLiveCaptureCoordinator -> package shutter`
 
-Keep this opt-in until Android/iOS physical geometry/orientation evidence is recorded.
+Stream analysis must pause/stop during capture, processing and confirmation, and remain opt-in until Android/iOS physical geometry/orientation evidence is recorded.
 
 ## Documentation policy
 

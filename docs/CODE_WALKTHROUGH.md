@@ -42,14 +42,20 @@ Public DTOs:
 - `CardCameraFramePlane`
 - `CardCameraFrame`
 
-`fromCameraImage()` copies plugin planes into an isolate-safe DTO. Supported formats are YUV420 and BGRA8888.
+`fromCameraImage()` copies plugin planes into an isolate-safe DTO. Supported layouts include BGRA8888, planar YUV420, and bi-planar YUV420. Row stride, luminance pixel stride, and chroma pixel stride are honored.
 
-`encodeJpeg()`:
-1. decodes the raw planes while honoring row stride and pixel stride
-2. crops a `NormalizedRect` expressed in raw-frame coordinates
-3. encodes only the ROI as JPEG for Rust quality/detection analysis
+`encodeJpeg()` quantizes the normalized raw-frame ROI first, then converts only pixels inside that ROI and JPEG-encodes the ROI for Rust quality/detection analysis. Full high-resolution frames are not decoded before cropping.
 
 The adapter intentionally does not rotate or mirror the stream frame. Preview-to-stream orientation must be resolved through the explicit SC-02 geometry contract and validated on physical Android/iOS devices.
+
+### Live frame analyzer — `card_live_frame_analyzer.dart`
+
+`CardLiveFrameAnalyzer` accepts a copied `CardCameraFrame` plus an already-mapped raw-frame ROI. `Isolate.run()` performs ROI conversion/JPEG encoding and Rust `analyzeQualityBytes()` / `detectBytes()` off the Flutter UI isolate. The returned `CardLiveAnalysisSample` is ready for `CardLiveCaptureCoordinator`.
+
+This keeps three responsibilities separate:
+1. `CardCaptureView` owns the camera stream and viewport geometry.
+2. `CardCameraImageAdapter` owns raw-plane conversion and ROI encoding.
+3. `CardLiveFrameAnalyzer` owns worker-isolate Rust analysis.
 
 ## Rust processing
 
@@ -59,7 +65,7 @@ The Rust processor owns deterministic image processing and exposes C ABI entry p
 
 `CardCaptureView` owns camera lifecycle, preview, controls, capture, EXIF normalization, ROI mapping, rectification, confirmation and final processing. `CardGalleryCaptureView`/`CardGalleryCropView` own Gallery flows.
 
-The upcoming live-stream wiring stays inside `CardCaptureView` and will feed analyzed samples into `CardLiveCaptureCoordinator` rather than exposing camera-plugin ownership to host applications.
+The next live-stream increment stays inside `CardCaptureView`: `startImageStream()` copies eligible frames, maps the visible capture frame through SC-02, submits them to `CardLiveFrameAnalyzer`, then feeds samples to `CardLiveCaptureCoordinator`. Streaming must not overlap capture/processing/confirmation.
 
 ## Validation tooling
 
@@ -70,4 +76,5 @@ CI covers Flutter analyze/tests, Example analyze/build and Rust format/Clippy/te
 - SC-00 through SC-03 merged.
 - SC-04 policy merged via PR #18.
 - SC-04 live coordinator merged via PR #19.
-- Current increment adds raw CameraImage conversion + ROI JPEG encoding.
+- SC-04 raw CameraImage adapter merged via PR #20.
+- Current increment adds worker-isolate live frame analysis; `startImageStream()` wiring remains next.

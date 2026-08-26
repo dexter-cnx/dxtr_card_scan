@@ -1,21 +1,21 @@
 use std::collections::VecDeque;
 
 use image::{DynamicImage, GrayImage};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Quad {
     /// Clockwise corners starting at the top-most corner, normalized to [0, 1].
     pub corners: [Point; 4],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct CandidateScore {
     pub total: f32,
     pub area: f32,
@@ -25,7 +25,7 @@ pub struct CandidateScore {
     pub edge_strength: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct DetectionResult {
     pub quad: Quad,
     pub score: CandidateScore,
@@ -396,9 +396,8 @@ fn ratio_similarity(actual: f32, expected: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use image::{DynamicImage, GrayImage, Luma};
-
     use super::*;
+    use image::{DynamicImage, GrayImage, Luma};
 
     fn rectangle_fixture(width: u32, height: u32, inset_x: u32, inset_y: u32) -> DynamicImage {
         let mut image = GrayImage::from_pixel(width, height, Luma([24]));
