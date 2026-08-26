@@ -167,27 +167,31 @@ class CardCaptureStabilityTracker {
   }
 
   double _maxCornerDisplacement(ProcessorQuad previous, ProcessorQuad current) {
-    final previousPoints = <ProcessorPoint>[
-      previous.topLeft,
-      previous.topRight,
-      previous.bottomRight,
-      previous.bottomLeft,
-    ];
-    final currentPoints = <ProcessorPoint>[
-      current.topLeft,
-      current.topRight,
-      current.bottomRight,
-      current.bottomLeft,
-    ];
+    final previousPoints = _quadPoints(previous);
+    final currentPoints = _quadPoints(current);
 
-    var maximumSquared = 0.0;
-    for (var index = 0; index < previousPoints.length; index += 1) {
-      final dx = currentPoints[index].x - previousPoints[index].x;
-      final dy = currentPoints[index].y - previousPoints[index].y;
-      final squared = dx * dx + dy * dy;
-      if (squared > maximumSquared) maximumSquared = squared;
+    var bestMaximumSquared = double.infinity;
+    for (var shift = 0; shift < currentPoints.length; shift += 1) {
+      var maximumSquared = 0.0;
+      for (var index = 0; index < previousPoints.length; index += 1) {
+        final currentIndex = (index + shift) % currentPoints.length;
+        final dx = currentPoints[currentIndex].x - previousPoints[index].x;
+        final dy = currentPoints[currentIndex].y - previousPoints[index].y;
+        final squared = dx * dx + dy * dy;
+        if (squared > maximumSquared) maximumSquared = squared;
+      }
+      if (maximumSquared < bestMaximumSquared) {
+        bestMaximumSquared = maximumSquared;
+      }
     }
 
-    return math.sqrt(maximumSquared);
+    return math.sqrt(bestMaximumSquared);
   }
+
+  List<ProcessorPoint> _quadPoints(ProcessorQuad quad) => <ProcessorPoint>[
+        quad.topLeft,
+        quad.topRight,
+        quad.bottomRight,
+        quad.bottomLeft,
+      ];
 }
