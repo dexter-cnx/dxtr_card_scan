@@ -59,23 +59,16 @@ v0.2 closed on 2026-08-22. PR #7 merged as `6b8b1bbeb4455e1d411926d8b7c56239f4a1
 - [x] CI + physical-device regression validation
 - [x] merge PR #9
 
-PR #9 was squash-merged to `main` on 2026-08-23 as `0805c55f5efb4aa513d7647777c7f3c140d40e85`.
-
 ## 0.3 Quality analysis
 - [x] blur score
 - [x] exposure
 - [x] card coverage
 - [x] detection confidence
 - [x] measurement-only Rust ABI + Dart API
-- [x] PR #10 implementation + CI/review
 - [x] Camera/Gallery calibration harness
-- [x] PR #11 calibration harness + EXIF-normalized evidence path
-- [x] define representative physical-device evidence protocol
+- [x] representative physical-device evidence protocol
 - [ ] collect representative physical-device calibration evidence
 - [ ] document candidate readiness thresholds from evidence
-
-PR #10 was squash-merged to `main` on 2026-08-23 as `0cac8fb9f53d7916433108c773fc0d8fc2162907`.
-PR #11 was squash-merged to `main` on 2026-08-23 as `8a1a4d9ac5578442b866ee051eec6b5d3f0d097b`.
 
 Quality analysis remains measurement-first. Default auto-capture readiness thresholds are not production-ready until representative physical-device calibration is collected.
 
@@ -83,20 +76,19 @@ Quality analysis remains measurement-first. Default auto-capture readiness thres
 - [x] SC-00 unified Camera/Gallery entry
 - [x] SC-01 advisory live-quality assessment model and configurable thresholds
 - [x] SC-02 public `CameraGeometryMapper` viewport -> raw sensor contract
-- [x] SC-02 explicit `BoxFit.cover` / `BoxFit.contain` preview composition
-- [x] SC-02 orientation/mirroring mapping through `CapturedImageTransform`
-- [x] SC-02 digital zoom/platform crop support through `displayedCropRegion`
-- [x] SC-02 regression coverage for cover, contain letterboxing, rotation and crop-region mapping
+- [x] SC-02 preview fit + orientation/mirroring + digital zoom/platform crop mapping
 - [ ] SC-02 physical-device geometry/calibration evidence across supported orientations and zoom states
 - [x] SC-03 blur gate for temporal stability samples
-- [x] SC-03 corresponding-corner displacement tracking
-- [x] SC-03 card-coverage drift tracking
+- [x] SC-03 cyclic-corner-aligned quad displacement + card-coverage drift tracking
 - [x] SC-03 configurable stable-frame streak and deterministic reset behavior
-- [x] SC-03 pure Dart regression coverage for stable, moved, blurry and missing-detection sequences
 - [ ] SC-03 physical-device stability calibration
+- [x] SC-04 `searching` / `detected` / `ready` / `cooldown` decision state machine
+- [x] SC-04 optional auto-capture decision; disabled by default
+- [x] SC-04 cooldown policy
+- [x] SC-04 aggregate score gate is opt-in pending calibration
 - [ ] SC-04 throttled live camera analysis integration
-- [ ] SC-04 searching / detected / ready state machine
-- [ ] SC-04 optional quality-gated auto-capture + cooldown
+- [ ] SC-04 wire ready decisions to package-owned shutter path
+- [ ] SC-04 physical auto-capture validation
 - [ ] SC-05 glare detection
 - [ ] SC-06 perspective/alignment score
 - [ ] SC-07 corner-confidence feedback UI
@@ -104,9 +96,11 @@ Quality analysis remains measurement-first. Default auto-capture readiness thres
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
 - [ ] SC-10 optional native scanner fallback
 
-SC-02 geometry contract: live frame/capture-frame ROIs use the same fitted-preview, orientation/mirroring and effective crop-region rules as final capture processing. `displayedCropRegion` represents digital zoom or platform camera crop in orientation-normalized displayed sensor space. Letterbox padding is never sensor content.
+SC-02 geometry contract: live frame/capture-frame ROIs use the same fitted-preview, orientation/mirroring and effective crop-region rules as final capture processing.
 
-SC-03 stability contract: a frame contributes to a stable streak only when sharpness and detection confidence pass. Accepted adjacent frames must remain within configured corresponding-corner displacement and card-coverage delta limits. Spatial movement starts a new streak at the current valid frame; blur/missing/invalid detection resets the streak completely. Stability has no shutter side effects.
+SC-03 stability contract: sharpness and detection confidence gate samples; cyclic detector start-corner changes are aligned before displacement measurement. Spatial movement starts a new streak at the current valid frame; blur/missing/invalid detection resets completely.
+
+SC-04 policy contract: quality/stability primitives feed a pure decision state machine. The policy never owns camera lifecycle or invokes the shutter. Auto capture remains opt-in and `minimumQualityScore` defaults to zero until physical calibration supports a non-zero aggregate threshold.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions

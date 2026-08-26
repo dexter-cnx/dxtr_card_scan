@@ -8,51 +8,33 @@ This document tracks the implementation as the package evolves.
 
 ### `lib/src/geometry/camera_geometry_mapper.dart`
 
-`CameraGeometryMapper` is the SC-02 contract for mapping a viewport-space frame or live-analysis ROI into normalized raw sensor/image coordinates.
-
-It models four pieces explicitly:
-- `viewportSize` — Flutter preview layout size.
-- `sensorSize` — raw camera image/sensor dimensions.
-- `fit` — preview composition (`BoxFit.cover` by default, `contain` supported for letterboxed layouts).
-- `displayedCropRegion` — normalized crop in orientation-normalized sensor space, used for platform crop regions and digital zoom.
-
-Orientation and preview mirroring are handled by `CapturedImageTransform`. The mapper first resolves the visible fitted preview, maps the viewport rectangle into the effective displayed crop, expands that local crop back into displayed sensor coordinates, then transforms it to raw sensor coordinates.
-
-Public outputs:
-- `viewportRectToSensor()` -> `NormalizedRect` in raw sensor/image space.
-- `viewportRectToSensorPixels()` -> raw pixel `Rect`.
-
-A viewport rectangle that lies completely outside a `BoxFit.contain` preview is rejected rather than silently mapping letterbox padding into the sensor. Partial overlap is clipped to the visible preview. SC-03/SC-04 must consume this mapper so live quality analysis and final capture ROI use one geometry contract.
+`CameraGeometryMapper` maps viewport-space frame/live-analysis ROIs into normalized raw sensor/image coordinates while accounting for preview `BoxFit`, orientation/mirroring, and `displayedCropRegion` digital zoom/platform crop. Letterbox padding is not treated as sensor content.
 
 ## Smart Capture quality and stability
 
 ### `lib/src/processor/card_scan_quality_analysis.dart`
 
-SC-01 interprets deterministic Rust quality measurements without triggering capture. `CardCaptureQualityAssessment` combines blur, exposure, card coverage and detector confidence into advisory issues and a conservative score. Exposure uses both mean luminance and clipping fractions; card-size guidance is emitted only when detection is trustworthy.
+SC-01 interprets deterministic Rust quality measurements without triggering capture. `CardCaptureQualityAssessment` combines blur, exposure, card coverage and detector confidence into advisory issues and a conservative score.
 
 ### `lib/src/capture/card_capture_stability_tracker.dart`
 
-SC-03 adds a deterministic temporal layer over per-frame quality plus `CardScanDetection` quad geometry.
+SC-03 adds deterministic temporal stability over quality plus `CardScanDetection` quad geometry. It gates on sharpness/detection confidence, tracks coverage drift, and aligns cyclic quad corner order before calculating maximum corresponding-corner displacement.
 
-`CardCaptureStabilityConfig` controls:
-- `requiredStableFrames`
-- minimum sharpness
-- minimum detection confidence
-- maximum normalized corresponding-corner displacement
-- maximum card-coverage delta
+`CardCaptureStabilitySnapshot` exposes stable-frame count, progress, movement measurements, blocking issue, and `isStable`.
 
-`CardCaptureStabilityTracker.addSample()` accepts one quality assessment and its optional detection. Blur, missing detection or low-confidence detection reset the streak to zero. Excessive movement or coverage drift resets the streak to one because the current valid frame becomes the next baseline. Accepted adjacent frames increment the streak.
+### `lib/src/capture/card_auto_capture_policy.dart`
 
-`CardCaptureStabilitySnapshot` exposes:
-- stable frame count
-- required frame count
-- progress
-- max corner displacement
-- coverage delta
-- blocking stability issue
-- `isStable`
+SC-04 composes SC-01 quality and SC-03 stability into a pure state machine:
+- `searching` — no trustworthy detection
+- `detected` — card detected but quality/stability gate not ready
+- `ready` — explicit quality issues are clear and stability is ready
+- `cooldown` — a prior enabled auto-capture decision is inside its cooldown window
 
-This class intentionally does not own a `CameraController`, image streaming, throttling, cooldown or shutter invocation. SC-04 will compose those concerns around the deterministic quality/geometry/stability primitives.
+`CardAutoCaptureConfig.enabled` defaults to `false`, preserving manual capture behavior. `minimumQualityScore` defaults to zero because the current SC-01 aggregate score contains card coverage and is not yet calibrated as a universal readiness threshold. Applications can opt into a non-zero score gate after collecting physical evidence.
+
+`CardAutoCapturePolicy.evaluate()` returns `CardAutoCaptureDecision`; it never invokes `CardCaptureController` and never owns camera lifecycle. When enabled, a ready decision emits `shouldCapture = true`, then subsequent evaluations remain in cooldown until the configured duration expires.
+
+The remaining SC-04 integration step is throttled camera image analysis wired to the package-owned camera surface using the SC-02 geometry contract.
 
 ## Rust processing
 
@@ -86,15 +68,7 @@ Input is encoded image bytes plus UTF-8 JSON options. Output/error memory remain
 
 ## Dart FFI boundary
 
-### `lib/src/processor/card_scan_processor_options.dart`
-Public DTOs mirror the Rust JSON contract without exposing Rust implementation types:
-- `CardScanProcessorOptions`
-- `ProcessorPoint`
-- `ProcessorQuad`
-- `ProcessorOutputFormat`
-
-### `lib/src/processor/card_scan_processor.dart`
-`CardScanProcessor` owns Dart-side FFI allocation/copy/free behavior. It exposes `processBytes()` and `processFile()`, converts options to UTF-8 JSON, copies Rust output before freeing the native result, and maps native failures to `CardScanProcessorException`.
+`CardScanProcessor` owns Dart-side FFI allocation/copy/free behavior and exposes `processBytes()` / `processFile()` while mapping native failures to `CardScanProcessorException`.
 
 Library loading:
 - Android: `DynamicLibrary.open('libdxtr_card_scan_processor.so')`
@@ -102,63 +76,17 @@ Library loading:
 
 ## Package-owned high-level capture pipeline
 
-### `lib/src/capture/card_capture_pipeline.dart`
-Shared Camera/Gallery pipeline:
-1. read source image
-2. decode + EXIF `bakeOrientation()` on `Isolate.run()`
-3. write normalized JPEG to system temporary storage
-4. crop/rectify through `CardScanProcessor` on a worker isolate
-5. optionally run final enhancement/grayscale/resize/encoding on a worker isolate
-6. describe generated files as `CardCaptureImage`
+`CardCaptureView` owns Camera lifecycle, preview, controls, orientation, capture, EXIF normalization, ROI mapping, rectification, confirmation and final processing. `CardGalleryCaptureView` / `CardGalleryCropView` own Gallery selection/crop/process behavior.
 
-The package does not force byte buffers through every callback. `CardCaptureImage` is file-backed (`path`, `width`, `height`) and exposes `readBytes()` only when the consumer needs bytes.
-
-### `CardCaptureResult`
-The final result keeps all useful stages:
-- `original` — full captured/selected image before crop
-- `cropped` — perspective-rectified card before final enhancement
-- `processed` — final configured processor output
-- `sourceRoi` — normalized source region used for rectification
-
-## High-level Camera surface
-
-### `lib/src/capture/card_capture_view.dart`
-`CardCaptureView` owns the complete default Camera behavior:
-- camera discovery and back-camera selection
-- CameraController lifecycle across app pause/resume
-- cover preview
-- pinch zoom
-- flash off/auto/on
-- torch
-- orientation-aware shutter placement
-- Back control
-- frame rendering and orientation policy
-- image capture
-- background EXIF normalization
-- `CaptureFrame` -> geometry mapping -> normalized source ROI
-- native auto-detection/perspective rectification
-- optional post-rectification confirmation
-- final processing
-
-The host only supplies configuration and result presentation. `CardCaptureController` remains an escape hatch for programmatic shutter triggering without transferring camera ownership back to the host.
-
-## High-level Gallery surfaces
-
-`CardGalleryCaptureView` owns the default Gallery source selection. Android/iOS use `image_picker`; macOS uses `file_selector`; hosts can override the picker. `CardGalleryCropView` owns EXIF normalization, crop, Rust detection/rectification, optional confirmation and final processing.
+`CardCaptureResult` exposes `original`, `cropped`, `processed`, and `sourceRoi`.
 
 ## Native packaging
 
-### Android
-`android/CMakeLists.txt` maps `ANDROID_ABI` to the matching Rust target and links the Rust staticlib into `libdxtr_card_scan_processor.so`.
-
-### iOS / macOS
-The podspecs run the Rust build before compile, declare the generated archive as an Xcode output and force-load it in the plugin Pod target.
+Android links the Rust staticlib into `libdxtr_card_scan_processor.so`. iOS/macOS pod targets build and force-load the generated Rust archive.
 
 ## Validation tooling
 
 `make install-hooks` installs the tracked pre-push guard. CI covers Flutter analyze/tests, Example analyze/build and Rust format/Clippy/tests.
-
-Generated build state such as `android/.cxx/`, generated example platform hosts, and `rust/target/` is ignored. `rust/Cargo.lock` remains committed.
 
 ## Naming rule
 
@@ -170,4 +98,5 @@ Generated build state such as `android/.cxx/`, generated example platform hosts,
 - SC-00 unified Camera/Gallery entry is merged.
 - SC-01 advisory live-quality assessment model is merged.
 - SC-02 frame-to-sensor geometry is merged.
-- SC-03 blur + temporal stability implementation is in progress; it remains independent from camera streaming and auto-capture.
+- SC-03 blur + temporal stability is merged.
+- SC-04 quality-gated decision/state/cooldown policy is in progress; live camera frame integration remains.
