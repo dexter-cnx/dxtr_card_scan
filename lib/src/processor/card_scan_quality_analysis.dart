@@ -76,3 +76,104 @@ class CardScanQualityAnalysis {
     );
   }
 }
+
+/// Interpreted quality issues suitable for live UI guidance.
+///
+/// This model remains advisory. It does not trigger capture automatically.
+enum CardCaptureQualityIssue {
+  blurry,
+  tooDark,
+  tooBright,
+  cardTooSmall,
+  lowDetectionConfidence,
+}
+
+/// Tunable thresholds used to interpret deterministic quality measurements.
+///
+/// Defaults are intentionally conservative placeholders and are expected to be
+/// refined with physical calibration evidence before auto-capture policy is
+/// introduced.
+class CardCaptureQualityThresholds {
+  const CardCaptureQualityThresholds({
+    this.minimumSharpnessScore = .55,
+    this.maximumDarkFraction = .30,
+    this.maximumBrightFraction = .20,
+    this.minimumCardCoverage = .32,
+    this.minimumDetectionConfidence = .60,
+  })  : assert(minimumSharpnessScore >= 0 && minimumSharpnessScore <= 1),
+        assert(maximumDarkFraction >= 0 && maximumDarkFraction <= 1),
+        assert(maximumBrightFraction >= 0 && maximumBrightFraction <= 1),
+        assert(minimumCardCoverage >= 0 && minimumCardCoverage <= 1),
+        assert(
+          minimumDetectionConfidence >= 0 && minimumDetectionConfidence <= 1,
+        );
+
+  final double minimumSharpnessScore;
+  final double maximumDarkFraction;
+  final double maximumBrightFraction;
+  final double minimumCardCoverage;
+  final double minimumDetectionConfidence;
+}
+
+/// Advisory interpretation of one quality-analysis sample.
+class CardCaptureQualityAssessment {
+  const CardCaptureQualityAssessment({
+    required this.analysis,
+    required this.issues,
+    required this.score,
+  });
+
+  final CardScanQualityAnalysis analysis;
+  final Set<CardCaptureQualityIssue> issues;
+
+  /// Conservative aggregate [0, 1] score based on the weakest normalized
+  /// measurement. It is for UI/ranking only and is not an auto-capture gate.
+  final double score;
+
+  bool get hasIssues => issues.isNotEmpty;
+
+  CardCaptureQualityIssue? get primaryIssue =>
+      issues.isEmpty ? null : issues.first;
+
+  factory CardCaptureQualityAssessment.fromAnalysis(
+    CardScanQualityAnalysis analysis, {
+    CardCaptureQualityThresholds thresholds =
+        const CardCaptureQualityThresholds(),
+  }) {
+    final issues = <CardCaptureQualityIssue>{};
+
+    if (analysis.blur.score < thresholds.minimumSharpnessScore) {
+      issues.add(CardCaptureQualityIssue.blurry);
+    }
+    if (analysis.exposure.darkFraction > thresholds.maximumDarkFraction) {
+      issues.add(CardCaptureQualityIssue.tooDark);
+    }
+    if (analysis.exposure.brightFraction > thresholds.maximumBrightFraction) {
+      issues.add(CardCaptureQualityIssue.tooBright);
+    }
+    if (analysis.cardCoverage < thresholds.minimumCardCoverage) {
+      issues.add(CardCaptureQualityIssue.cardTooSmall);
+    }
+    if (analysis.detectionConfidence < thresholds.minimumDetectionConfidence) {
+      issues.add(CardCaptureQualityIssue.lowDetectionConfidence);
+    }
+
+    final exposurePenalty =
+        (1 - analysis.exposure.darkFraction - analysis.exposure.brightFraction)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final score = <double>[
+      analysis.blur.score.clamp(0.0, 1.0).toDouble(),
+      analysis.exposure.score.clamp(0.0, 1.0).toDouble(),
+      exposurePenalty,
+      analysis.cardCoverage.clamp(0.0, 1.0).toDouble(),
+      analysis.detectionConfidence.clamp(0.0, 1.0).toDouble(),
+    ].reduce((value, next) => value < next ? value : next);
+
+    return CardCaptureQualityAssessment(
+      analysis: analysis,
+      issues: Set.unmodifiable(issues),
+      score: score,
+    );
+  }
+}
