@@ -13,6 +13,7 @@ export 'src/capture/card_capture_pipeline.dart';
 export 'src/capture/card_capture_result.dart';
 export 'src/capture/card_capture_stability_tracker.dart';
 export 'src/capture/card_capture_view.dart';
+export 'src/capture/card_live_camera_session.dart';
 export 'src/capture/card_live_capture_coordinator.dart';
 export 'src/capture/card_live_frame_analyzer.dart';
 export 'src/crop/card_gallery_capture_view.dart';

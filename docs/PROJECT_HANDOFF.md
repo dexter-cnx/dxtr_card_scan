@@ -20,6 +20,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 8. Temporal stability and auto-capture are deterministic policy layers.
 9. Auto capture is opt-in and disabled by default.
 10. Raw `CameraImage` planes are converted to an encoded analysis ROI before entering the Rust ABI.
+11. Live stream callbacks must apply backpressure before copying/decoding frames.
 
 ## Merged Smart Capture work
 
@@ -30,6 +31,7 @@ Repository: `dexter-cnx/dxtr_card_scan`
 - SC-04 quality-gated auto-capture policy — PR #18, `e10bdbe282ce9476852520bd71421033da0b8888`
 - SC-04 live capture coordinator — PR #19, `2daf3d0bcac573e98806511922e1282a597a8667`
 - SC-04 raw CameraImage adapter — PR #20, `71eaf99e437c243aa1069d863930b7d376a97e21`
+- SC-04 worker-isolate live frame analysis — PR #21, `c6b6150df886070eacc3086443c8359fb014eebc`
 
 Current branch: `feature/sc04-live-stream-wiring`.
 
@@ -61,7 +63,13 @@ The adapter deliberately does **not** rotate or mirror. Its ROI is expected to a
 
 ### SC-04 live frame analyzer
 
-Current branch adds `CardLiveFrameAnalyzer`. It accepts a copied `CardCameraFrame` plus mapped `NormalizedRect`, then runs ROI conversion/JPEG encoding and Rust quality/detection on a worker isolate. It returns `CardLiveAnalysisSample` ready for `CardLiveCaptureCoordinator` without blocking the camera/UI isolate.
+`CardLiveFrameAnalyzer` accepts a copied `CardCameraFrame` plus mapped `NormalizedRect`, then runs ROI conversion/JPEG encoding and one combined Rust quality/detection call on a worker isolate. It returns `CardLiveAnalysisSample` ready for `CardLiveCaptureCoordinator` without blocking the camera/UI isolate.
+
+### SC-04 live camera session
+
+Current branch adds `CardLiveCameraSession`. It owns `CameraController.startImageStream()` lifecycle and enforces interval gating plus a single-frame-in-flight rule before expensive plane copies and isolate work. Stop/restart generations invalidate stale analysis results, and stopping resets coordinator state.
+
+The session requires a `CardLiveFrameRoiResolver`. That callback must use the SC-02 mapping contract; the session deliberately does not infer orientation, mirroring or digital-zoom crop.
 
 Android/iOS stream orientation and preview-to-stream mapping still require physical-device validation before automatic live streaming is enabled by default.
 
@@ -74,14 +82,15 @@ Android/iOS stream orientation and preview-to-stream mapping still require physi
 5. Cyclic quad ordering must not create false stability motion.
 6. Cooldown starts only after a shutter dispatch is accepted.
 7. Live geometry must account for preview fit, crop/zoom, rotation and mirroring explicitly.
+8. Throttle before copying camera planes and do not allow an unbounded frame-analysis queue.
 
 ## Next milestone
 
-Wire a throttled `startImageStream()` path in `CardCaptureView`:
+Wire `CardLiveCameraSession` into `CardCaptureView`:
 
-`CameraImage -> copied CardCameraFrame -> SC-02 raw ROI -> CardLiveFrameAnalyzer -> CardLiveCaptureCoordinator -> package shutter`
+`CameraImage -> SC-02 raw ROI resolver -> copied CardCameraFrame -> CardLiveFrameAnalyzer -> CardLiveCaptureCoordinator -> package shutter`
 
-Stream analysis must pause/stop during capture, processing and confirmation, and remain opt-in until Android/iOS physical geometry/orientation evidence is recorded.
+`CardCaptureView` must stop/pause streaming before still capture, keep it stopped during processing/confirmation, and restart only when the live camera surface is active again. Auto capture remains opt-in until Android/iOS physical geometry/orientation evidence is recorded.
 
 ## Documentation policy
 
