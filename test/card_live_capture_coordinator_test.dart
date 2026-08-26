@@ -76,7 +76,10 @@ void main() {
         config: const CardCaptureStabilityConfig(requiredStableFrames: 1),
       ),
       autoCapturePolicy: CardAutoCapturePolicy(
-        config: const CardAutoCaptureConfig(enabled: true, cooldown: Duration.zero),
+        config: const CardAutoCaptureConfig(
+          enabled: true,
+          cooldown: Duration.zero,
+        ),
       ),
     );
 
@@ -95,12 +98,12 @@ void main() {
 }
 
 CardLiveAnalysisSample _sample({double offset = 0}) {
-  final analysis = CardScanQualityAnalysis(
-    blur: const CardScanBlurQuality(
+  const analysis = CardScanQualityAnalysis(
+    blur: CardScanBlurQuality(
       laplacianVariance: 100,
       score: .90,
     ),
-    exposure: const CardScanExposureQuality(
+    exposure: CardScanExposureQuality(
       meanLuma: .50,
       darkFraction: .02,
       brightFraction: .02,
