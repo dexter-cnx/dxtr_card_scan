@@ -173,10 +173,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
       (oldWidget.controller ?? _internalController).detach(_capture);
       _captureController.attach(_capture);
     }
-    if (oldWidget.liveStreamTransformResolver !=
-            widget.liveStreamTransformResolver ||
-        oldWidget.autoCapture != widget.autoCapture ||
-        oldWidget.liveAnalysisInterval != widget.liveAnalysisInterval) {
+    if (oldWidget.autoCapture != widget.autoCapture ||
+        oldWidget.liveAnalysisInterval != widget.liveAnalysisInterval ||
+        (oldWidget.liveStreamTransformResolver == null) !=
+            (widget.liveStreamTransformResolver == null)) {
       unawaited(_reconfigureLiveSession());
     }
   }
@@ -254,8 +254,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
   }
 
   Future<void> _configureAndStartLiveSession(CameraController camera) async {
-    final transformResolver = widget.liveStreamTransformResolver;
-    if (transformResolver == null || !mounted || _rectified != null || _busy) {
+    if (widget.liveStreamTransformResolver == null ||
+        !mounted ||
+        _rectified != null ||
+        _busy) {
       return;
     }
 
@@ -276,6 +278,8 @@ class _CardCaptureViewState extends State<CardCaptureView>
         // Do not analyze a zoomed stream until that crop mapping is explicit.
         if ((_zoom - _minZoom).abs() > 0.0001) return null;
 
+        final transformResolver = widget.liveStreamTransformResolver;
+        if (transformResolver == null) return null;
         final transform = transformResolver(
           camera.description,
           camera.value.deviceOrientation,
@@ -306,6 +310,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
     }
   }
 
+  Future<void> _pauseLiveSession() async {
+    await _liveSession?.stop(resetCoordinator: false);
+  }
+
   Future<void> _stopLiveSession() async {
     final session = _liveSession;
     _liveSession = null;
@@ -316,7 +324,15 @@ class _CardCaptureViewState extends State<CardCaptureView>
   Future<void> _restartLiveSession() async {
     final camera = _camera;
     if (camera == null || _busy || _rectified != null) return;
-    await _stopLiveSession();
+
+    final session = _liveSession;
+    if (session != null) {
+      if (!session.isRunning) {
+        await session.start(camera);
+      }
+      return;
+    }
+
     if (!mounted || !identical(_camera, camera)) return;
     await _configureAndStartLiveSession(camera);
   }
@@ -349,7 +365,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       _processingPreviewPath = null;
     });
 
-    await _stopLiveSession();
+    await _pauseLiveSession();
 
     try {
       final shot = await camera.takePicture();
@@ -443,7 +459,12 @@ class _CardCaptureViewState extends State<CardCaptureView>
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        if (_rectified == null) {
+          unawaited(_restartLiveSession());
+        }
+      }
     }
   }
 
