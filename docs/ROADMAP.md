@@ -81,11 +81,27 @@ PR #11 was squash-merged to `main` on 2026-08-23 as `8a1a4d9ac5578442b866ee051ee
 
 Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable. The next implementation gate requires physical-device evidence; do not guess readiness thresholds from synthetic data alone.
 
-## 0.4 Live detection
-- [ ] throttled analysis
-- [ ] searching/detected/ready states
-- [ ] stability tracking
-- [ ] optional auto-capture
+## 0.4 Smart / live capture
+- [x] SC-00 unified Camera/Gallery entry
+- [x] SC-01 advisory live-quality assessment model and configurable thresholds
+- [x] SC-02 public `CameraGeometryMapper` viewport -> raw sensor contract
+- [x] SC-02 explicit `BoxFit.cover` / `BoxFit.contain` preview composition
+- [x] SC-02 orientation/mirroring mapping through `CapturedImageTransform`
+- [x] SC-02 digital zoom/platform crop support through `displayedCropRegion`
+- [x] SC-02 regression coverage for cover, contain letterboxing, rotation and crop-region mapping
+- [ ] SC-02 physical-device geometry/calibration evidence across supported orientations and zoom states
+- [ ] SC-03 throttled live analysis
+- [ ] SC-03 blur + temporal stability tracking
+- [ ] SC-04 searching / detected / ready state machine
+- [ ] SC-04 optional quality-gated auto-capture
+- [ ] SC-05 glare detection
+- [ ] SC-06 perspective/alignment score
+- [ ] SC-07 corner-confidence feedback UI
+- [ ] SC-08 quality metadata in `CardCaptureResult`
+- [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
+- [ ] SC-10 optional native scanner fallback
+
+SC-02 geometry contract: live frame/capture-frame ROIs must be mapped with the same fitted-preview, orientation/mirroring, and effective crop-region rules as final capture processing. `displayedCropRegion` is expressed in orientation-normalized displayed sensor space and represents digital zoom or platform camera crop. Letterbox padding under `BoxFit.contain` is not sensor content and must not silently map into a sensor ROI.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
