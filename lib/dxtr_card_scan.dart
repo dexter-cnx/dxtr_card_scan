@@ -17,6 +17,7 @@ export 'src/crop/image_crop_style.dart';
 export 'src/crop/image_crop_view.dart';
 export 'src/frame/capture_frame.dart';
 export 'src/frame/capture_frame_style.dart';
+export 'src/geometry/camera_geometry_mapper.dart';
 export 'src/geometry/captured_image_transform.dart';
 export 'src/geometry/normalized_rect.dart';
 export 'src/geometry/preview_geometry.dart';
