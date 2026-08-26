@@ -45,7 +45,7 @@
 - [x] SC-04 raw-frame ROI crop + JPEG encode for Rust analysis
 - [x] SC-04 worker-isolate live frame analyzer for Rust quality/detection
 - [x] SC-04 camera stream session with pre-throttle + single-frame-in-flight
-- [ ] SC-04 wire live stream session into `CardCaptureView`
+- [x] SC-04 wire live stream session into `CardCaptureView`
 - [ ] SC-04 preview-to-stream orientation/geometry physical validation
 - [ ] SC-04 end-to-end physical auto-capture validation
 - [ ] SC-05 glare detection
@@ -55,7 +55,7 @@
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
 - [ ] SC-10 optional native scanner fallback
 
-SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. Its ROI resolver must return an ROI already mapped into raw-frame coordinates. `CardCameraImageAdapter` then honors plane strides, crops that ROI and JPEG-encodes it; `CardLiveFrameAnalyzer` performs conversion + Rust quality/detection on a worker isolate. Rotation/mirroring remains explicit and must be resolved by the SC-02 geometry contract before extraction.
+SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. `CardCaptureView` owns the session, package shutter delegate and SC-02 viewport/frame mapping. Live streaming remains opt-in through an explicit `CardLiveStreamTransformResolver`; unresolved orientation/mirroring states skip analysis rather than guessing. Zoomed live analysis is also skipped until preview-to-stream crop mapping is physically calibrated. Still capture stops streaming before `takePicture()` and keeps it stopped through processing/confirmation, restarting only when the live camera surface is active again.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
