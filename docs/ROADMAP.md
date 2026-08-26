@@ -47,8 +47,6 @@ v0.2 closed on 2026-08-22. PR #7 merged as `6b8b1bbeb4455e1d411926d8b7c56239f4a1
 
 ## Capture API ownership refactor
 
-Before starting quality metrics, move end-to-end capture behavior behind package-owned high-level surfaces so host apps configure rather than reimplement the pipeline.
-
 - [x] `CardCaptureView` owns Camera discovery/lifecycle/preview
 - [x] package-owned Back / flash / torch / zoom / shutter controls
 - [x] package-owned EXIF normalization + frame ROI mapping
@@ -79,7 +77,7 @@ PR #9 was squash-merged to `main` on 2026-08-23 as `0805c55f5efb4aa513d7647777c7
 PR #10 was squash-merged to `main` on 2026-08-23 as `0cac8fb9f53d7916433108c773fc0d8fc2162907`.
 PR #11 was squash-merged to `main` on 2026-08-23 as `8a1a4d9ac5578442b866ee051eec6b5d3f0d097b`.
 
-Quality analysis is measurement-only first. Do not couple thresholds to live auto-capture until calibration evidence is stable. The next implementation gate requires physical-device evidence; do not guess readiness thresholds from synthetic data alone.
+Quality analysis remains measurement-first. Default auto-capture readiness thresholds are not production-ready until representative physical-device calibration is collected.
 
 ## 0.4 Smart / live capture
 - [x] SC-00 unified Camera/Gallery entry
@@ -90,10 +88,15 @@ Quality analysis is measurement-only first. Do not couple thresholds to live aut
 - [x] SC-02 digital zoom/platform crop support through `displayedCropRegion`
 - [x] SC-02 regression coverage for cover, contain letterboxing, rotation and crop-region mapping
 - [ ] SC-02 physical-device geometry/calibration evidence across supported orientations and zoom states
-- [ ] SC-03 throttled live analysis
-- [ ] SC-03 blur + temporal stability tracking
+- [x] SC-03 blur gate for temporal stability samples
+- [x] SC-03 corresponding-corner displacement tracking
+- [x] SC-03 card-coverage drift tracking
+- [x] SC-03 configurable stable-frame streak and deterministic reset behavior
+- [x] SC-03 pure Dart regression coverage for stable, moved, blurry and missing-detection sequences
+- [ ] SC-03 physical-device stability calibration
+- [ ] SC-04 throttled live camera analysis integration
 - [ ] SC-04 searching / detected / ready state machine
-- [ ] SC-04 optional quality-gated auto-capture
+- [ ] SC-04 optional quality-gated auto-capture + cooldown
 - [ ] SC-05 glare detection
 - [ ] SC-06 perspective/alignment score
 - [ ] SC-07 corner-confidence feedback UI
@@ -101,7 +104,9 @@ Quality analysis is measurement-only first. Do not couple thresholds to live aut
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
 - [ ] SC-10 optional native scanner fallback
 
-SC-02 geometry contract: live frame/capture-frame ROIs must be mapped with the same fitted-preview, orientation/mirroring, and effective crop-region rules as final capture processing. `displayedCropRegion` is expressed in orientation-normalized displayed sensor space and represents digital zoom or platform camera crop. Letterbox padding under `BoxFit.contain` is not sensor content and must not silently map into a sensor ROI.
+SC-02 geometry contract: live frame/capture-frame ROIs use the same fitted-preview, orientation/mirroring and effective crop-region rules as final capture processing. `displayedCropRegion` represents digital zoom or platform camera crop in orientation-normalized displayed sensor space. Letterbox padding is never sensor content.
+
+SC-03 stability contract: a frame contributes to a stable streak only when sharpness and detection confidence pass. Accepted adjacent frames must remain within configured corresponding-corner displacement and card-coverage delta limits. Spatial movement starts a new streak at the current valid frame; blur/missing/invalid detection resets the streak completely. Stability has no shutter side effects.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
