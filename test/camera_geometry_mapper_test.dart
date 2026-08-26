@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:flutter/painting.dart' show BoxFit;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
