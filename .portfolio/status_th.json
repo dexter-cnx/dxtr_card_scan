@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "title": "dxtr_card_scan",
+    "tagline": "แพ็กเกจ Flutter สำหรับกล้องและ preprocessing เอกสารที่ปรับแต่งได้",
+    "status": "active",
+    "version": null
+  },
+  "summary": {
+    "short": "dxtr_card_scan เป็น flow กล้องและ gallery สำหรับสแกนเอกสาร รองรับกรอบตาม orientation, theme, flash/torch, zoom และ post-processing ด้วย Rust",
+    "long": "แพ็กเกจกำลังอยู่ในช่วง calibration บนอุปกรณ์จริง รองรับ portrait/landscape, การจัดตำแหน่งและ pitch ของกรอบ, ปรับรูปแบบปุ่ม capture, gallery input, edge detection, deskew, แปลงขาวดำแบบ optional และ resize"
+  },
+  "highlights": [
+    "รองรับ portrait และ landscape แบบปรับแต่งได้",
+    "กำหนด frame alignment, pitch และ theme",
+    "Flash, torch, zoom และ gallery flow",
+    "Post-processing ด้วย Rust"
+  ],
+  "tech": ["Dart", "Flutter", "Rust", "Camera"],
+  "links": {
+    "repository": "https://github.com/dexter-cnx/dxtr_card_scan",
+    "homepage": null,
+    "package": null,
+    "docs": null,
+    "demo": null
+  },
+  "updatedAt": "2026-08-27T00:00:00Z"
+}
