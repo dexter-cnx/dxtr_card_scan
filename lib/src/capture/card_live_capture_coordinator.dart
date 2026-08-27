@@ -15,10 +15,17 @@ class CardLiveAnalysisSample {
   const CardLiveAnalysisSample({
     required this.quality,
     required this.detection,
-  });
+    this.imageAspectRatio = 1,
+  }) : assert(imageAspectRatio > 0);
 
   final CardCaptureQualityAssessment quality;
   final CardScanDetection? detection;
+
+  /// Width / height ratio of the exact encoded ROI analyzed by Rust.
+  ///
+  /// The default preserves source compatibility for manually constructed test
+  /// samples. Production live analysis supplies the quantized ROI ratio.
+  final double imageAspectRatio;
 }
 
 /// Coordinates throttled live-analysis samples with stability and auto-capture.

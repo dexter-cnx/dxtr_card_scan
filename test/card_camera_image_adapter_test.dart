@@ -47,6 +47,29 @@ void main() {
     expect(decoded.height, 2);
   });
 
+  test('ROI aspect ratio matches encoded quantized dimensions', () {
+    final frame = CardCameraFrame(
+      width: 7,
+      height: 5,
+      format: CardCameraFrameFormat.bgra8888,
+      planes: [
+        CardCameraFramePlane(
+          bytes: Uint8List(7 * 5 * 4),
+          bytesPerRow: 7 * 4,
+          bytesPerPixel: 4,
+        ),
+      ],
+    );
+    const roi = NormalizedRect(left: .2, top: .2, right: .8, bottom: .8);
+    final decoded = img.decodeJpg(adapter.encodeJpeg(frame, roi: roi));
+
+    expect(decoded, isNotNull);
+    expect(
+      adapter.roiAspectRatio(frame, roi),
+      closeTo(decoded!.width / decoded.height, 1e-9),
+    );
+  });
+
   test('encodes neutral tri-planar YUV420 frame', () {
     final frame = CardCameraFrame(
       width: 2,
