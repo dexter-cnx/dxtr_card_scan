@@ -37,6 +37,29 @@ jobs:
         working-directory: example
         run: flutter build apk --debug --target-platform android-arm64
 
+  apple:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Package dependencies
+        run: flutter pub get
+      - name: Scaffold example host platforms
+        run: bash tool/bootstrap_example_platforms.sh
+      - name: Example dependencies
+        working-directory: example
+        run: flutter pub get
+      - name: Build iOS native processor example without codesigning
+        working-directory: example
+        run: flutter build ios --debug --no-codesign
+      - name: Build macOS native processor example
+        working-directory: example
+        run: flutter build macos --debug
+
   rust:
     runs-on: ubuntu-latest
     timeout-minutes: 15
