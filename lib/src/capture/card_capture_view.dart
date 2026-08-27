@@ -12,6 +12,7 @@ import '../geometry/captured_image_transform.dart';
 import '../geometry/preview_geometry.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../theme/card_scan_theme.dart';
+import '../ui/card_live_feedback_overlay_layer.dart';
 import '../ui/card_scan_labels.dart';
 import 'capture_confirmation_mode.dart';
 import 'capture_orientation_policy.dart';
@@ -24,6 +25,7 @@ import 'card_capture_pipeline.dart';
 import 'card_capture_result.dart';
 import 'card_live_camera_session.dart';
 import 'card_live_capture_coordinator.dart';
+import 'card_live_feedback_controller.dart';
 
 typedef CaptureFrameBuilder = Widget Function(
   BuildContext context,
@@ -134,6 +136,8 @@ class _CardCaptureViewState extends State<CardCaptureView>
     with WidgetsBindingObserver {
   final CardCapturePipeline _pipeline = const CardCapturePipeline();
   final CardCaptureController _internalController = CardCaptureController();
+  final CardLiveFeedbackController _liveFeedbackController =
+      CardLiveFeedbackController();
 
   CameraController? _camera;
   CardLiveCameraSession? _liveSession;
@@ -192,6 +196,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
   Future<void> _releaseCamera() async {
     final camera = _camera;
     _camera = null;
+    _liveFeedbackController.clear();
     if (mounted) setState(() {});
     await _stopLiveSession();
     await camera?.dispose();
@@ -263,6 +268,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final coordinator = CardLiveCaptureCoordinator(
       autoCapturePolicy: CardAutoCapturePolicy(config: widget.autoCapture),
       capture: _capture,
+      onAcceptedSample: _liveFeedbackController.accept,
       analysisInterval: widget.liveAnalysisInterval,
     );
     final session = CardLiveCameraSession(
@@ -308,12 +314,14 @@ class _CardCaptureViewState extends State<CardCaptureView>
   }
 
   Future<void> _pauseLiveSession() async {
+    _liveFeedbackController.clear();
     await _liveSession?.stop(resetCoordinator: false);
   }
 
   Future<void> _stopLiveSession() async {
     final session = _liveSession;
     _liveSession = null;
+    _liveFeedbackController.clear();
     await session?.stop();
   }
 
@@ -512,6 +520,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final camera = _camera;
     _camera = null;
     unawaited(_stopLiveSession().whenComplete(() => camera?.dispose()));
+    _liveFeedbackController.dispose();
     super.dispose();
   }
 
@@ -602,6 +611,11 @@ class _CardCaptureViewState extends State<CardCaptureView>
                 )
             else if (widget.orientationMismatchBuilder case final builder?)
               builder(context, orientation, widget.orientationPolicy),
+            if (allowed)
+              CardLiveFeedbackOverlayLayer(
+                controller: _liveFeedbackController,
+                frameRect: frameRect,
+              ),
             if (widget.controlsBuilder case final builder?)
               builder(context, controlsScope)
             else
