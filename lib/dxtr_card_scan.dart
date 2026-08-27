@@ -11,6 +11,7 @@ export 'src/capture/card_capture_controls_scope.dart';
 export 'src/capture/card_capture_image.dart';
 export 'src/capture/card_capture_pipeline.dart';
 export 'src/capture/card_capture_profile.dart';
+export 'src/capture/card_capture_profile_view.dart';
 export 'src/capture/card_capture_quality_metadata.dart';
 export 'src/capture/card_capture_result.dart';
 export 'src/capture/card_capture_stability_tracker.dart';
