@@ -53,6 +53,7 @@
 - [x] SC-06 advisory perspective/alignment geometry analysis
 - [ ] SC-06 physical perspective/alignment calibration + threshold
 - [x] SC-07 reusable corner-confidence model + overlay UI
+- [x] SC-07 accepted-sample feedback controller bridge
 - [ ] SC-07 wire live feedback into `CardCaptureView`
 - [ ] SC-08 quality metadata in `CardCaptureResult`
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
@@ -64,7 +65,7 @@ SC-05 glare remains measurement-only until physical evidence establishes a relia
 
 SC-06 perspective/alignment analysis is derived from the existing detected quad in Dart, so it adds no native image-analysis pass. `perspectiveScore` combines opposite-edge length balance and opposite-edge parallelism; `alignmentScore` reuses the detector's center-alignment signal. Production thresholds remain calibration-gated.
 
-SC-07 corner feedback is also geometry-only. Per-corner confidence combines the detector's existing edge-strength signal with adjacent-edge orthogonality after restoring the analysis image aspect ratio. The reusable overlay maps ROI-normalized corner coordinates into the capture frame without another sensor-space transform or native analysis pass.
+SC-07 corner feedback is also geometry-only. Per-corner confidence combines the detector's existing edge-strength signal with adjacent-edge orthogonality after restoring the analysis image aspect ratio. The reusable overlay maps ROI-normalized corner coordinates into the capture frame without another sensor-space transform or native analysis pass. `CardLiveFeedbackController` bridges accepted live samples to a `ValueListenable<CardCornerFeedback?>`, clears stale feedback when detection is lost, and remains advisory-only.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
