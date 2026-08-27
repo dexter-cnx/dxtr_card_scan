@@ -20,6 +20,7 @@ export 'src/capture/card_live_camera_session.dart';
 export 'src/capture/card_live_capture_coordinator.dart';
 export 'src/capture/card_live_feedback_controller.dart';
 export 'src/capture/card_live_frame_analyzer.dart';
+export 'src/capture/card_native_scanner.dart';
 export 'src/crop/card_gallery_capture_view.dart';
 export 'src/crop/card_gallery_crop_view.dart';
 export 'src/crop/image_crop_selection.dart';
