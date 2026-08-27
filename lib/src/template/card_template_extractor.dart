@@ -55,10 +55,22 @@ class CardTemplateExtractor {
     return List.unmodifiable(
       template.regions.map((region) {
         final rect = region.rect;
-        final left = (rect.left * decoded.width).floor().clamp(0, decoded.width - 1);
-        final top = (rect.top * decoded.height).floor().clamp(0, decoded.height - 1);
-        final right = (rect.right * decoded.width).ceil().clamp(left + 1, decoded.width);
-        final bottom = (rect.bottom * decoded.height).ceil().clamp(top + 1, decoded.height);
+        final left = (rect.left * decoded.width)
+            .floor()
+            .clamp(0, decoded.width - 1)
+            .toInt();
+        final top = (rect.top * decoded.height)
+            .floor()
+            .clamp(0, decoded.height - 1)
+            .toInt();
+        final right = (rect.right * decoded.width)
+            .ceil()
+            .clamp(left + 1, decoded.width)
+            .toInt();
+        final bottom = (rect.bottom * decoded.height)
+            .ceil()
+            .clamp(top + 1, decoded.height)
+            .toInt();
         final width = right - left;
         final height = bottom - top;
         final cropped = img.copyCrop(
