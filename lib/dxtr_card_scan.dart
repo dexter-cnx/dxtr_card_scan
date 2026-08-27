@@ -34,4 +34,5 @@ export 'src/processor/card_scan_processor_options.dart';
 export 'src/processor/card_scan_quality_analysis.dart';
 export 'src/theme/camera_controls_style.dart';
 export 'src/theme/card_scan_theme.dart';
+export 'src/ui/card_corner_feedback_overlay.dart';
 export 'src/ui/card_scan_labels.dart';

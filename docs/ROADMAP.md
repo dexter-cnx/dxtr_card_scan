@@ -52,7 +52,8 @@
 - [ ] SC-05 physical glare calibration + production threshold
 - [x] SC-06 advisory perspective/alignment geometry analysis
 - [ ] SC-06 physical perspective/alignment calibration + threshold
-- [ ] SC-07 corner-confidence feedback UI
+- [x] SC-07 reusable corner-confidence model + overlay UI
+- [ ] SC-07 wire live feedback into `CardCaptureView`
 - [ ] SC-08 quality metadata in `CardCaptureResult`
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
 - [ ] SC-10 optional native scanner fallback
@@ -62,6 +63,8 @@ SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust 
 SC-05 glare remains measurement-only until physical evidence establishes a reliable acceptance threshold. The Rust measurement separates overall near-white neutral coverage from localized hotspot concentration so ordinary bright exposure is not treated as equivalent to specular glare.
 
 SC-06 perspective/alignment analysis is derived from the existing detected quad in Dart, so it adds no native image-analysis pass. `perspectiveScore` combines opposite-edge length balance and opposite-edge parallelism; `alignmentScore` reuses the detector's center-alignment signal. Production thresholds remain calibration-gated.
+
+SC-07 corner feedback is also geometry-only. Per-corner confidence combines the detector's existing edge-strength signal with adjacent-edge orthogonality after restoring the analysis image aspect ratio. The reusable overlay maps ROI-normalized corner coordinates into the capture frame without another sensor-space transform or native analysis pass.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
