@@ -28,12 +28,22 @@ class CardScanPerspectiveAnalysis {
   /// Similarity of opposite edge directions in `[0, 1]`.
   final double parallelismScore;
 
-  factory CardScanPerspectiveAnalysis.fromDetection(CardScanDetection detection) {
+  /// Builds geometry measurements from a detector quad.
+  ///
+  /// Detector coordinates normalize x and y independently. [imageAspectRatio]
+  /// restores their relative pixel scale before edge lengths and directions are
+  /// measured, preventing source image shape from changing the score.
+  factory CardScanPerspectiveAnalysis.fromDetection(
+    CardScanDetection detection, {
+    required double imageAspectRatio,
+  }) {
+    assert(imageAspectRatio > 0 && imageAspectRatio.isFinite);
+
     final q = detection.quad;
-    final top = _vector(q.topLeft, q.topRight);
-    final right = _vector(q.topRight, q.bottomRight);
-    final bottom = _vector(q.bottomLeft, q.bottomRight);
-    final left = _vector(q.topLeft, q.bottomLeft);
+    final top = _vector(q.topLeft, q.topRight, imageAspectRatio);
+    final right = _vector(q.topRight, q.bottomRight, imageAspectRatio);
+    final bottom = _vector(q.bottomLeft, q.bottomRight, imageAspectRatio);
+    final left = _vector(q.topLeft, q.bottomLeft, imageAspectRatio);
 
     final horizontalBalance = _ratioSimilarity(top.length, bottom.length);
     final verticalBalance = _ratioSimilarity(left.length, right.length);
@@ -60,8 +70,9 @@ class CardScanPerspectiveAnalysis {
 ({double dx, double dy, double length}) _vector(
   ProcessorPoint a,
   ProcessorPoint b,
+  double imageAspectRatio,
 ) {
-  final dx = b.x - a.x;
+  final dx = (b.x - a.x) * imageAspectRatio;
   final dy = b.y - a.y;
   return (dx: dx, dy: dy, length: math.sqrt(dx * dx + dy * dy));
 }
