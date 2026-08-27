@@ -8,11 +8,11 @@
   },
   "summary": {
     "short": "dxtr_card_scan provides a configurable camera/gallery capture flow for document scanning with orientation-aware framing, theming, flash/torch controls, zoom, and Rust-backed post-processing.",
-    "long": "The package is being calibrated for real devices and supports portrait/landscape constraints, frame alignment and pitch, customizable capture controls, gallery input, edge detection, deskew, optional black-and-white conversion, and resize processing."
+    "long": "The package is being calibrated for real devices and supports portrait/landscape constraints, frame alignment and padding, customizable capture controls, gallery input, edge detection, deskew, optional black-and-white conversion, and resize processing."
   },
   "highlights": [
     "Configurable portrait and landscape capture",
-    "Frame alignment, pitch, and theming",
+    "Frame alignment, padding, and theming",
     "Flash, torch, zoom, and gallery flows",
     "Rust-backed post-processing"
   ],
