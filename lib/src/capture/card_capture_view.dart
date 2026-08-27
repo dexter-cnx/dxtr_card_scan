@@ -12,6 +12,7 @@ import '../geometry/captured_image_transform.dart';
 import '../geometry/preview_geometry.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../theme/card_scan_theme.dart';
+import '../ui/card_live_feedback_overlay_layer.dart';
 import '../ui/card_scan_labels.dart';
 import 'capture_confirmation_mode.dart';
 import 'capture_orientation_policy.dart';
@@ -24,6 +25,7 @@ import 'card_capture_pipeline.dart';
 import 'card_capture_result.dart';
 import 'card_live_camera_session.dart';
 import 'card_live_capture_coordinator.dart';
+import 'card_live_feedback_controller.dart';
 
 typedef CaptureFrameBuilder = Widget Function(
   BuildContext context,
@@ -134,6 +136,8 @@ class _CardCaptureViewState extends State<CardCaptureView>
     with WidgetsBindingObserver {
   final CardCapturePipeline _pipeline = const CardCapturePipeline();
   final CardCaptureController _internalController = CardCaptureController();
+  final CardLiveFeedbackController _liveFeedbackController =
+      CardLiveFeedbackController();
 
   CameraController? _camera;
   CardLiveCameraSession? _liveSession;
@@ -192,6 +196,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
   Future<void> _releaseCamera() async {
     final camera = _camera;
     _camera = null;
+    _liveFeedbackController.clear();
     if (mounted) setState(() {});
     await _stopLiveSession();
     await camera?.dispose();
@@ -257,12 +262,14 @@ class _CardCaptureViewState extends State<CardCaptureView>
         !mounted ||
         _rectified != null ||
         _busy) {
+      _liveFeedbackController.clear();
       return;
     }
 
     final coordinator = CardLiveCaptureCoordinator(
       autoCapturePolicy: CardAutoCapturePolicy(config: widget.autoCapture),
       capture: _capture,
+      onAcceptedSample: _liveFeedbackController.accept,
       analysisInterval: widget.liveAnalysisInterval,
     );
     final session = CardLiveCameraSession(
@@ -270,20 +277,30 @@ class _CardCaptureViewState extends State<CardCaptureView>
       roiResolver: (image) {
         final frameRect = _lastFrameRect;
         if (_viewportSize.isEmpty || frameRect == null || !_captureEnabled) {
+          _liveFeedbackController.clear();
           return null;
         }
 
         // The platform camera zoom crop still requires physical calibration.
         // Do not analyze a zoomed stream until that crop mapping is explicit.
-        if ((_zoom - _minZoom).abs() > 0.0001) return null;
+        if ((_zoom - _minZoom).abs() > 0.0001) {
+          _liveFeedbackController.clear();
+          return null;
+        }
 
         final transformResolver = widget.liveStreamTransformResolver;
-        if (transformResolver == null) return null;
+        if (transformResolver == null) {
+          _liveFeedbackController.clear();
+          return null;
+        }
         final transform = transformResolver(
           camera.description,
           camera.value.deviceOrientation,
         );
-        if (transform == null) return null;
+        if (transform == null) {
+          _liveFeedbackController.clear();
+          return null;
+        }
 
         return CameraGeometryMapper(
           viewportSize: _viewportSize,
@@ -303,17 +320,20 @@ class _CardCaptureViewState extends State<CardCaptureView>
       if (identical(_liveSession, session)) {
         _liveSession = null;
       }
+      _liveFeedbackController.clear();
       if (mounted) setState(() => _error = error);
     }
   }
 
   Future<void> _pauseLiveSession() async {
+    _liveFeedbackController.clear();
     await _liveSession?.stop(resetCoordinator: false);
   }
 
   Future<void> _stopLiveSession() async {
     final session = _liveSession;
     _liveSession = null;
+    _liveFeedbackController.clear();
     await session?.stop();
   }
 
@@ -496,6 +516,9 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final camera = _camera;
     if (camera == null) return;
     final zoom = value.clamp(_minZoom, _maxZoom).toDouble();
+    if ((zoom - _minZoom).abs() > 0.0001) {
+      _liveFeedbackController.clear();
+    }
     try {
       await camera.setZoomLevel(zoom);
       if (mounted) setState(() => _zoom = zoom);
@@ -512,6 +535,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final camera = _camera;
     _camera = null;
     unawaited(_stopLiveSession().whenComplete(() => camera?.dispose()));
+    _liveFeedbackController.dispose();
     super.dispose();
   }
 
@@ -602,6 +626,11 @@ class _CardCaptureViewState extends State<CardCaptureView>
                 )
             else if (widget.orientationMismatchBuilder case final builder?)
               builder(context, orientation, widget.orientationPolicy),
+            if (allowed)
+              CardLiveFeedbackOverlayLayer(
+                controller: _liveFeedbackController,
+                frameRect: frameRect,
+              ),
             if (widget.controlsBuilder case final builder?)
               builder(context, controlsScope)
             else
