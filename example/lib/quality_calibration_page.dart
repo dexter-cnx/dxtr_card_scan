@@ -1,6 +1,6 @@
 import 'dart:isolate';
 
-import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:dxtr_card_scan/dxtr_card_scan_advanced.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
