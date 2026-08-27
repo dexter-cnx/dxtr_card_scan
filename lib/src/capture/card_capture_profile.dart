@@ -7,53 +7,48 @@ import 'card_auto_capture_policy.dart';
 /// remains the authority for enabling automatic shutter behavior.
 enum CardCaptureProfile {
   /// Host-controlled capture without automatic perspective detection.
-  manual(
-    processorOptions: CardScanProcessorOptions(),
-  ),
+  manual,
 
   /// OCR-oriented perspective correction and enhancement.
-  ocr(
-    processorOptions: CardScanProcessorOptions(
-      autoDetect: true,
-      warpLongEdge: 1600,
-      enhanceForOcr: true,
-      maxDimension: 2000,
-      outputFormat: ProcessorOutputFormat.jpeg,
-      jpegQuality: 92,
-    ),
-  ),
+  ocr,
 
   /// Lower-cost processing for latency-sensitive capture flows.
-  fast(
-    processorOptions: CardScanProcessorOptions(
-      autoDetect: true,
-      warpLongEdge: 1200,
-      maxDimension: 1400,
-      outputFormat: ProcessorOutputFormat.jpeg,
-      jpegQuality: 85,
-    ),
-  ),
+  fast,
 
   /// Higher-fidelity lossless output for long-term retention.
-  archival(
-    processorOptions: CardScanProcessorOptions(
-      autoDetect: true,
-      warpLongEdge: 2400,
-      outputFormat: ProcessorOutputFormat.png,
-    ),
-  );
+  archival,
+}
 
-  const CardCaptureProfile({
-    required this.processorOptions,
-    this.autoCapture = const CardAutoCaptureConfig(),
-  });
-
+/// Immutable defaults associated with a [CardCaptureProfile].
+extension CardCaptureProfileDefaults on CardCaptureProfile {
   /// Processor options recommended for this profile.
-  final CardScanProcessorOptions processorOptions;
+  CardScanProcessorOptions get processorOptions => switch (this) {
+        CardCaptureProfile.manual => const CardScanProcessorOptions(),
+        CardCaptureProfile.ocr => const CardScanProcessorOptions(
+            autoDetect: true,
+            warpLongEdge: 1600,
+            enhanceForOcr: true,
+            maxDimension: 2000,
+            outputFormat: ProcessorOutputFormat.jpeg,
+            jpegQuality: 92,
+          ),
+        CardCaptureProfile.fast => const CardScanProcessorOptions(
+            autoDetect: true,
+            warpLongEdge: 1200,
+            maxDimension: 1400,
+            outputFormat: ProcessorOutputFormat.jpeg,
+            jpegQuality: 85,
+          ),
+        CardCaptureProfile.archival => const CardScanProcessorOptions(
+            autoDetect: true,
+            warpLongEdge: 2400,
+            outputFormat: ProcessorOutputFormat.png,
+          ),
+      };
 
   /// Auto-capture defaults for this profile.
   ///
   /// All built-in profiles remain opt-in for automatic shutter dispatch until
   /// physical calibration evidence supports enabling it safely.
-  final CardAutoCaptureConfig autoCapture;
+  CardAutoCaptureConfig get autoCapture => const CardAutoCaptureConfig();
 }
