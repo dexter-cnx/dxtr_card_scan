@@ -197,20 +197,17 @@ fn measure_glare(rgb: &RgbImage) -> GlareMeasurement {
     }
 
     let specular_fraction = specular as f32 / count as f32;
-    let mut peak_tile_fraction = 0.0f32;
-    for tile_y in 0..tiles_y {
-        for tile_x in 0..tiles_x {
-            let left = tile_x * GLARE_TILE_SIZE;
-            let top = tile_y * GLARE_TILE_SIZE;
-            let tile_width = GLARE_TILE_SIZE.min(rgb.width() - left);
-            let tile_height = GLARE_TILE_SIZE.min(rgb.height() - top);
-            let tile_count = (tile_width * tile_height).max(1);
-            let tile_index = (tile_y * tiles_x + tile_x) as usize;
-            let fraction = tile_specular[tile_index] as f32 / tile_count as f32;
-            peak_tile_fraction = peak_tile_fraction.max(fraction);
-        }
-    }
+    let full_tile_count = (GLARE_TILE_SIZE * GLARE_TILE_SIZE) as f32;
+    let peak_tile_fraction = tile_specular
+        .iter()
+        .map(|&tile_specular_count| tile_specular_count as f32 / full_tile_count)
+        .fold(0.0f32, f32::max);
 
+    // Edge tiles intentionally keep the same 32x32 normalization as interior
+    // tiles (equivalent to padding missing pixels as non-specular). This keeps
+    // a tiny remainder tile from turning a single bright border pixel into a
+    // 100% hotspot purely because of image dimensions.
+    //
     // Keep this deliberately advisory. The normalization constants only make
     // the signal convenient to consume; physical evidence must calibrate any
     // future acceptance threshold.
@@ -290,6 +287,17 @@ mod tests {
         assert!(glare_measurement.specular_fraction > 0.0);
         assert!(glare_measurement.peak_tile_fraction > 0.0);
         assert!(glare_measurement.score > clean_measurement.score);
+    }
+
+    #[test]
+    fn partial_edge_tile_does_not_amplify_single_bright_pixel() {
+        let mut image = RgbImage::from_pixel(33, 33, Rgb([160, 160, 160]));
+        image.put_pixel(32, 32, Rgb([255, 255, 255]));
+
+        let measurement = measure_glare(&image);
+        let expected_tile_fraction = 1.0 / (GLARE_TILE_SIZE * GLARE_TILE_SIZE) as f32;
+        assert!((measurement.peak_tile_fraction - expected_tile_fraction).abs() < f32::EPSILON);
+        assert!(measurement.peak_tile_fraction < 0.01);
     }
 
     #[test]
