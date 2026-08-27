@@ -1,4 +1,5 @@
 import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> _onCompleted(CardCaptureResult _) async {}
@@ -31,6 +32,17 @@ void main() {
 
     expect(view.processOptions, same(processOptions));
     expect(view.autoCapture, same(autoCapture));
+  });
+
+  test('profile factory forwards widget key', () {
+    const key = ValueKey<String>('ocr-capture');
+
+    final view = CardCaptureProfile.ocr.captureView(
+      key: key,
+      onCompleted: _onCompleted,
+    );
+
+    expect(view.key, same(key));
   });
 
   test('legacy const CardCaptureView remains available', () {
