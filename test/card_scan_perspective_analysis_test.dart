@@ -12,6 +12,7 @@ void main() {
           bottomLeft: ProcessorPoint(.1, .8),
         ),
       ),
+      imageAspectRatio: 1,
     );
 
     expect(analysis.oppositeEdgeBalance, closeTo(1, 1e-9));
@@ -30,6 +31,7 @@ void main() {
           bottomLeft: ProcessorPoint(.1, .8),
         ),
       ),
+      imageAspectRatio: 1,
     );
     final keystone = CardScanPerspectiveAnalysis.fromDetection(
       _detection(
@@ -40,10 +42,40 @@ void main() {
           bottomLeft: ProcessorPoint(.08, .8),
         ),
       ),
+      imageAspectRatio: 1,
     );
 
     expect(keystone.perspectiveScore, lessThan(square.perspectiveScore));
     expect(keystone.oppositeEdgeBalance, lessThan(1));
+  });
+
+  test('equivalent pixel geometry is invariant to image aspect ratio', () {
+    final square = CardScanPerspectiveAnalysis.fromDetection(
+      _detection(
+        const ProcessorQuad(
+          topLeft: ProcessorPoint(.10, .20),
+          topRight: ProcessorPoint(.90, .20),
+          bottomRight: ProcessorPoint(.85, .80),
+          bottomLeft: ProcessorPoint(.15, .80),
+        ),
+      ),
+      imageAspectRatio: 1,
+    );
+    final wide = CardScanPerspectiveAnalysis.fromDetection(
+      _detection(
+        const ProcessorQuad(
+          topLeft: ProcessorPoint(.30, .20),
+          topRight: ProcessorPoint(.70, .20),
+          bottomRight: ProcessorPoint(.675, .80),
+          bottomLeft: ProcessorPoint(.325, .80),
+        ),
+      ),
+      imageAspectRatio: 2,
+    );
+
+    expect(wide.oppositeEdgeBalance, closeTo(square.oppositeEdgeBalance, 1e-9));
+    expect(wide.parallelismScore, closeTo(square.parallelismScore, 1e-9));
+    expect(wide.perspectiveScore, closeTo(square.perspectiveScore, 1e-9));
   });
 }
 
