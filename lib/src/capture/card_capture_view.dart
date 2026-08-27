@@ -22,7 +22,6 @@ import 'card_capture_controls_config.dart';
 import 'card_capture_controls_scope.dart';
 import 'card_capture_image.dart';
 import 'card_capture_pipeline.dart';
-import 'card_capture_profile.dart';
 import 'card_capture_result.dart';
 import 'card_live_camera_session.dart';
 import 'card_live_capture_coordinator.dart';
@@ -73,29 +72,23 @@ class CardCaptureView extends StatefulWidget {
     this.frameBuilder,
     this.orientationPolicy = CaptureOrientationPolicy.any,
     this.orientationMismatchBuilder,
-    this.profile,
-    CardScanProcessorOptions? processOptions,
+    this.processOptions = const CardScanProcessorOptions(
+      autoDetect: true,
+      warpLongEdge: 1600,
+    ),
     this.confirmationMode = CaptureConfirmationMode.none,
     this.controls = const CardCaptureControlsConfig(),
     this.controlsBuilder,
     this.labels = const CardCaptureLabels(),
     this.resolutionPreset = ResolutionPreset.max,
-    CardAutoCaptureConfig? autoCapture,
+    this.autoCapture = const CardAutoCaptureConfig(),
     this.liveAnalysisInterval = const Duration(milliseconds: 180),
     this.liveStreamTransformResolver,
     this.onRawCaptured,
     this.onCropReady,
     this.onClose,
     super.key,
-  })  : processOptions = processOptions ??
-            profile?.processorOptions ??
-            const CardScanProcessorOptions(
-              autoDetect: true,
-              warpLongEdge: 1600,
-            ),
-        autoCapture = autoCapture ??
-            profile?.autoCapture ??
-            const CardAutoCaptureConfig();
+  });
 
   final CardCaptureController? controller;
   final CaptureFrame frame;
@@ -103,13 +96,6 @@ class CardCaptureView extends StatefulWidget {
   final CaptureFrameBuilder? frameBuilder;
   final CaptureOrientationPolicy orientationPolicy;
   final CaptureOrientationMismatchBuilder? orientationMismatchBuilder;
-
-  /// Optional named defaults for processing and auto-capture behavior.
-  ///
-  /// Explicit [processOptions] and [autoCapture] constructor arguments remain
-  /// authoritative when supplied.
-  final CardCaptureProfile? profile;
-
   final CardScanProcessorOptions processOptions;
   final CaptureConfirmationMode confirmationMode;
   final CardCaptureControlsConfig controls;
