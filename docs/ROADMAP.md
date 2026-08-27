@@ -84,8 +84,14 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 `CardTemplate` is pure-Dart metadata over the perspective-corrected card coordinate space. It preserves template-defined region order, rejects empty/duplicate names and invalid normalized bounds, and remains independent from camera, UI, and FFI layers. `CardTemplateExtractor` consumes the already perspective-corrected encoded image produced by the existing processor path, decodes it once, crops every named region in template order with deterministic floor/ceil quantization, and returns PNG-encoded region bytes ready for OCR consumers without adding another native processing pass.
 
 ## 1.0
+- [x] audit current root-barrel public API and define stability tiers
+- [ ] decide root-barrel disposition of low-level live/orchestration exports
+- [ ] add public API compatibility regression suite
+- [ ] document supported advanced API contracts
 - [ ] stable public API
 - [ ] validated Android/iOS/macOS support
 - [ ] benchmarks
 - [ ] full example app
 - [ ] package documentation
+
+The 1.0 API audit is tracked in `docs/1.0_PUBLIC_API_AUDIT.md`. The package must not mark `stable public API` complete until every currently exported low-level orchestration type has an explicit stability decision and the primary construction paths are covered by compatibility regression tests.
