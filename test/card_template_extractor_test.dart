@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 void main() {
-  const template = CardTemplate(
+  final template = CardTemplate(
     id: 'test-card',
-    regions: [
+    regions: const [
       CardTemplateRegion(
         name: 'left',
         rect: NormalizedRect(
@@ -48,7 +48,7 @@ void main() {
   });
 
   test('quantization uses floor left top and ceil right bottom', () {
-    final template = CardTemplate(
+    final quantizedTemplate = CardTemplate(
       id: 'quantized',
       regions: const [
         CardTemplateRegion(
@@ -64,7 +64,8 @@ void main() {
     );
 
     const extractor = CardTemplateExtractor();
-    final region = extractor.extractBytes(encodedImage(), template).single;
+    final region =
+        extractor.extractBytes(encodedImage(), quantizedTemplate).single;
 
     expect(region.width, 6);
     expect(region.height, 5);
