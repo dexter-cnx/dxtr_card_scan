@@ -4,7 +4,7 @@ import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:dxtr_card_scan/dxtr_card_scan_advanced.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
