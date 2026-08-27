@@ -59,7 +59,7 @@
 - [x] SC-08 optional quality metadata contract in `CardCaptureResult`
 - [x] SC-08 snapshot eligible live analysis at shutter time
 - [x] SC-09 capture profile preset contract (`ocr`, `fast`, `archival`, `manual`)
-- [ ] SC-09 wire profiles into `CardCaptureView` without breaking its const constructor
+- [x] SC-09 profile-driven `CardCaptureView` factory without breaking its const constructor
 - [ ] SC-10 optional native scanner fallback
 
 SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. `CardCaptureView` owns the session, package shutter delegate and SC-02 viewport/frame mapping. Live streaming remains opt-in through an explicit `CardLiveStreamTransformResolver`; unresolved orientation/mirroring states skip analysis rather than guessing. Zoomed live analysis is also skipped until preview-to-stream crop mapping is physically calibrated. Still capture stops streaming before `takePicture()` and keeps it stopped through processing/confirmation, restarting only when the live camera surface is active again.
@@ -72,7 +72,7 @@ SC-07 corner feedback is geometry-only. Per-corner confidence combines the detec
 
 SC-08 keeps result metadata optional so existing camera/gallery callers remain source-compatible. `CardCaptureQualityMetadata` carries the existing quality assessment, associated detection, and exact analyzed ROI aspect ratio without requiring another native image-analysis pass. `CardCaptureView` freezes the latest eligible accepted live sample immediately before pausing the image stream for shutter dispatch. Live UI/eligibility state can then be cleared without losing the capture snapshot; retake/capture failure clears it, while successful completion attaches it to `CardCaptureResult` and releases it afterward.
 
-SC-09 introduces named processor presets for `manual`, `ocr`, `fast`, and `archival` capture goals. Built-in profiles deliberately leave automatic shutter dispatch disabled so profile selection cannot bypass physical calibration requirements. Direct profile resolution inside the existing `const CardCaptureView` constructor is deferred because Dart constant evaluation does not permit reading enum/extension properties from constructor parameters; SC-09 wiring must preserve the current const constructor rather than introducing a breaking change.
+SC-09 introduces named processor presets for `manual`, `ocr`, `fast`, and `archival` capture goals. Built-in profiles deliberately leave automatic shutter dispatch disabled so profile selection cannot bypass physical calibration requirements. Profile wiring uses `CardCaptureProfile.<profile>.captureView(...)`, which applies the profile defaults at runtime while keeping the original `const CardCaptureView(...)` constructor unchanged. Explicit `processOptions` and `autoCapture` arguments remain authoritative over profile defaults.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
