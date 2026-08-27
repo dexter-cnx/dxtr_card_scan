@@ -79,9 +79,9 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 
 ## 0.5 CardTemplate
 - [x] named normalized OCR region model + validation
-- [ ] region extraction after perspective correction
+- [x] region extraction after perspective correction
 
-`CardTemplate` is pure-Dart metadata over the perspective-corrected card coordinate space. It preserves template-defined region order, rejects empty/duplicate names and zero-area regions, and remains independent from camera, UI, and FFI layers so extraction and OCR integrations can reuse the same contract.
+`CardTemplate` is pure-Dart metadata over the perspective-corrected card coordinate space. It preserves template-defined region order, rejects empty/duplicate names and invalid normalized bounds, and remains independent from camera, UI, and FFI layers. `CardTemplateExtractor` consumes the already perspective-corrected encoded image produced by the existing processor path, decodes it once, crops every named region in template order with deterministic floor/ceil quantization, and returns PNG-encoded region bytes ready for OCR consumers without adding another native processing pass.
 
 ## 1.0
 - [ ] stable public API
