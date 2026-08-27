@@ -56,7 +56,8 @@
 - [x] SC-07 accepted-sample feedback controller bridge
 - [x] SC-07 reusable live feedback overlay listener layer
 - [x] SC-07 wire live feedback into `CardCaptureView`
-- [ ] SC-08 quality metadata in `CardCaptureResult`
+- [x] SC-08 optional quality metadata contract in `CardCaptureResult`
+- [ ] SC-08 snapshot eligible live analysis at shutter time
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
 - [ ] SC-10 optional native scanner fallback
 
@@ -67,6 +68,8 @@ SC-05 glare remains measurement-only until physical evidence establishes a relia
 SC-06 perspective/alignment analysis is derived from the existing detected quad in Dart, so it adds no native image-analysis pass. `perspectiveScore` combines opposite-edge length balance and opposite-edge parallelism; `alignmentScore` reuses the detector's center-alignment signal. Production thresholds remain calibration-gated.
 
 SC-07 corner feedback is geometry-only. Per-corner confidence combines the detector's existing edge-strength signal with adjacent-edge orthogonality after restoring the exact analyzed ROI aspect ratio. `CardCaptureView` now owns a `CardLiveFeedbackController`, feeds it only accepted live-analysis samples, renders `CardLiveFeedbackOverlayLayer` in the resolved capture frame, and clears feedback whenever live streaming pauses or stops so stale geometry is never shown over still/confirmation states. The feedback path remains advisory-only and does not participate in stability, readiness, or auto-capture decisions.
+
+SC-08 keeps result metadata optional so existing camera/gallery callers remain source-compatible. `CardCaptureQualityMetadata` carries the existing quality assessment, associated detection, and exact analyzed ROI aspect ratio without requiring another native image-analysis pass. The capture view will snapshot only an eligible accepted live sample at shutter time in the follow-up wiring step.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions

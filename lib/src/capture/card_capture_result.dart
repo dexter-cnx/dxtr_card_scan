@@ -1,5 +1,6 @@
 import '../geometry/normalized_rect.dart';
 import 'card_capture_image.dart';
+import 'card_capture_quality_metadata.dart';
 
 export '../geometry/normalized_rect.dart';
 
@@ -10,6 +11,7 @@ class CardCaptureResult {
     required this.cropped,
     required this.processed,
     required this.sourceRoi,
+    this.qualityMetadata,
   });
 
   /// Full camera image before frame cropping or processing.
@@ -23,4 +25,10 @@ class CardCaptureResult {
 
   /// Capture-frame ROI mapped back into the normalized source image.
   final NormalizedRect sourceRoi;
+
+  /// Optional quality/detection snapshot associated with this capture.
+  ///
+  /// Null preserves compatibility for gallery/manual flows or capture paths
+  /// that did not have an eligible live-analysis sample at shutter time.
+  final CardCaptureQualityMetadata? qualityMetadata;
 }
