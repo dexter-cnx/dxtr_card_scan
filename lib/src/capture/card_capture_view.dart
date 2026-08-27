@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:camera/camera.dart';
@@ -6,18 +7,23 @@ import 'package:flutter/services.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
+import '../geometry/camera_geometry_mapper.dart';
+import '../geometry/captured_image_transform.dart';
 import '../geometry/preview_geometry.dart';
 import '../processor/card_scan_processor_options.dart';
 import '../theme/card_scan_theme.dart';
 import '../ui/card_scan_labels.dart';
 import 'capture_confirmation_mode.dart';
 import 'capture_orientation_policy.dart';
+import 'card_auto_capture_policy.dart';
 import 'card_capture_controller.dart';
 import 'card_capture_controls_config.dart';
 import 'card_capture_controls_scope.dart';
 import 'card_capture_image.dart';
 import 'card_capture_pipeline.dart';
 import 'card_capture_result.dart';
+import 'card_live_camera_session.dart';
+import 'card_live_capture_coordinator.dart';
 
 typedef CaptureFrameBuilder = Widget Function(
   BuildContext context,
@@ -37,6 +43,16 @@ typedef CardCaptureImageCallback = Future<void> Function(
 );
 typedef CardCaptureResultCallback = Future<void> Function(
   CardCaptureResult result,
+);
+
+/// Resolves the explicit raw-stream transform for the active camera state.
+///
+/// Return `null` when the current camera/device orientation has not been
+/// physically validated. Live analysis skips frames until a transform is
+/// available instead of guessing rotation or mirroring.
+typedef CardLiveStreamTransformResolver = CapturedImageTransform? Function(
+  CameraDescription camera,
+  DeviceOrientation deviceOrientation,
 );
 
 /// High-level package-owned Camera capture + processing surface.
@@ -63,6 +79,9 @@ class CardCaptureView extends StatefulWidget {
     this.controlsBuilder,
     this.labels = const CardCaptureLabels(),
     this.resolutionPreset = ResolutionPreset.max,
+    this.autoCapture = const CardAutoCaptureConfig(),
+    this.liveAnalysisInterval = const Duration(milliseconds: 180),
+    this.liveStreamTransformResolver,
     this.onRawCaptured,
     this.onCropReady,
     this.onClose,
@@ -85,6 +104,23 @@ class CardCaptureView extends StatefulWidget {
 
   final CardCaptureLabels labels;
   final ResolutionPreset resolutionPreset;
+
+  /// Quality/stability policy used by the package-owned live coordinator.
+  ///
+  /// Auto capture remains disabled unless [CardAutoCaptureConfig.enabled] is
+  /// explicitly set to true.
+  final CardAutoCaptureConfig autoCapture;
+
+  /// Minimum interval between accepted live-analysis frames.
+  final Duration liveAnalysisInterval;
+
+  /// Explicit preview-to-raw transform contract for live streaming.
+  ///
+  /// When null, `CardCaptureView` does not start an image stream. This keeps
+  /// live analysis opt-in until the host has recorded physical orientation and
+  /// mirroring evidence for its supported device states.
+  final CardLiveStreamTransformResolver? liveStreamTransformResolver;
+
   final CardCaptureImageCallback? onRawCaptured;
   final CardCaptureImageCallback? onCropReady;
   final CardCaptureResultCallback onCompleted;
@@ -100,6 +136,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
   final CardCaptureController _internalController = CardCaptureController();
 
   CameraController? _camera;
+  CardLiveCameraSession? _liveSession;
   bool _initializing = false;
   bool _busy = false;
   bool _captureEnabled = true;
@@ -135,6 +172,12 @@ class _CardCaptureViewState extends State<CardCaptureView>
       (oldWidget.controller ?? _internalController).detach(_capture);
       _captureController.attach(_capture);
     }
+    if (oldWidget.autoCapture != widget.autoCapture ||
+        oldWidget.liveAnalysisInterval != widget.liveAnalysisInterval ||
+        (oldWidget.liveStreamTransformResolver == null) !=
+            (widget.liveStreamTransformResolver == null)) {
+      unawaited(_reconfigureLiveSession());
+    }
   }
 
   @override
@@ -150,6 +193,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final camera = _camera;
     _camera = null;
     if (mounted) setState(() {});
+    await _stopLiveSession();
     await camera?.dispose();
   }
 
@@ -199,11 +243,102 @@ class _CardCaptureViewState extends State<CardCaptureView>
         _zoom = minZoom;
       });
       controller = null;
+      await _configureAndStartLiveSession(readyController);
     } catch (error) {
       await controller?.dispose();
       if (mounted) setState(() => _error = error);
     } finally {
       _initializing = false;
+    }
+  }
+
+  Future<void> _configureAndStartLiveSession(CameraController camera) async {
+    if (widget.liveStreamTransformResolver == null ||
+        !mounted ||
+        _rectified != null ||
+        _busy) {
+      return;
+    }
+
+    final coordinator = CardLiveCaptureCoordinator(
+      autoCapturePolicy: CardAutoCapturePolicy(config: widget.autoCapture),
+      capture: _capture,
+      analysisInterval: widget.liveAnalysisInterval,
+    );
+    final session = CardLiveCameraSession(
+      coordinator: coordinator,
+      roiResolver: (image) {
+        final frameRect = _lastFrameRect;
+        if (_viewportSize.isEmpty || frameRect == null || !_captureEnabled) {
+          return null;
+        }
+
+        // The platform camera zoom crop still requires physical calibration.
+        // Do not analyze a zoomed stream until that crop mapping is explicit.
+        if ((_zoom - _minZoom).abs() > 0.0001) return null;
+
+        final transformResolver = widget.liveStreamTransformResolver;
+        if (transformResolver == null) return null;
+        final transform = transformResolver(
+          camera.description,
+          camera.value.deviceOrientation,
+        );
+        if (transform == null) return null;
+
+        return CameraGeometryMapper(
+          viewportSize: _viewportSize,
+          sensorSize: Size(image.width.toDouble(), image.height.toDouble()),
+          transform: transform,
+        ).viewportRectToSensor(frameRect);
+      },
+      onError: (error, _) {
+        if (mounted) setState(() => _error = error);
+      },
+    );
+
+    _liveSession = session;
+    try {
+      await session.start(camera);
+    } catch (error) {
+      if (identical(_liveSession, session)) {
+        _liveSession = null;
+      }
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
+  Future<void> _pauseLiveSession() async {
+    await _liveSession?.stop(resetCoordinator: false);
+  }
+
+  Future<void> _stopLiveSession() async {
+    final session = _liveSession;
+    _liveSession = null;
+    await session?.stop();
+  }
+
+  Future<void> _restartLiveSession() async {
+    final camera = _camera;
+    if (camera == null || _busy || _rectified != null) return;
+
+    final session = _liveSession;
+    if (session != null) {
+      if (!session.isRunning) {
+        await session.start(camera);
+      }
+      return;
+    }
+
+    if (!mounted || !identical(_camera, camera)) return;
+    await _configureAndStartLiveSession(camera);
+  }
+
+  Future<void> _reconfigureLiveSession() async {
+    await _stopLiveSession();
+    if (!mounted) return;
+    final camera = _camera;
+    if (camera != null && !_busy && _rectified == null) {
+      await _configureAndStartLiveSession(camera);
     }
   }
 
@@ -225,6 +360,8 @@ class _CardCaptureViewState extends State<CardCaptureView>
       _error = null;
       _processingPreviewPath = null;
     });
+
+    await _pauseLiveSession();
 
     try {
       final shot = await camera.takePicture();
@@ -281,6 +418,9 @@ class _CardCaptureViewState extends State<CardCaptureView>
             _processingPreviewPath = null;
           }
         });
+        if (_rectified == null) {
+          unawaited(_restartLiveSession());
+        }
       }
     }
   }
@@ -315,7 +455,12 @@ class _CardCaptureViewState extends State<CardCaptureView>
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        if (_rectified == null) {
+          unawaited(_restartLiveSession());
+        }
+      }
     }
   }
 
@@ -364,7 +509,9 @@ class _CardCaptureViewState extends State<CardCaptureView>
     WidgetsBinding.instance.removeObserver(this);
     _captureController.detach(_capture);
     _internalController.dispose();
-    _camera?.dispose();
+    final camera = _camera;
+    _camera = null;
+    unawaited(_stopLiveSession().whenComplete(() => camera?.dispose()));
     super.dispose();
   }
 
@@ -376,10 +523,13 @@ class _CardCaptureViewState extends State<CardCaptureView>
         image: rectified,
         labels: widget.labels,
         busy: _busy,
-        onRetake: () => setState(() {
-          _rectified = null;
-          _processingPreviewPath = null;
-        }),
+        onRetake: () {
+          setState(() {
+            _rectified = null;
+            _processingPreviewPath = null;
+          });
+          unawaited(_restartLiveSession());
+        },
         onConfirm: () {
           final roi = _lastRoi;
           if (roi != null) _finish(rectified, roi);

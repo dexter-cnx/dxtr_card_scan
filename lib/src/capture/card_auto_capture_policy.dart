@@ -29,6 +29,17 @@ class CardAutoCaptureConfig {
   final double minimumQualityScore;
 
   final Duration cooldown;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CardAutoCaptureConfig &&
+          enabled == other.enabled &&
+          minimumQualityScore == other.minimumQualityScore &&
+          cooldown == other.cooldown;
+
+  @override
+  int get hashCode => Object.hash(enabled, minimumQualityScore, cooldown);
 }
 
 /// One deterministic policy evaluation for a live analysis sample.
