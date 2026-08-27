@@ -22,14 +22,14 @@ fn main() {
     // Warm native/image-codec paths before measuring.
     let decoded = image::load_from_memory(&input).expect("synthetic PNG must decode");
     let _ = analyze_quality(&decoded);
-    let _ = process_encoded(&input, &options).expect("processor warmup must succeed");
+    let _ = process_encoded(&input, options.clone()).expect("processor warmup must succeed");
 
     let quality = measure(iterations, || {
         let image = image::load_from_memory(&input).expect("synthetic PNG must decode");
         let _ = analyze_quality(&image);
     });
     let process = measure(iterations, || {
-        let _ = process_encoded(&input, &options).expect("processor benchmark must succeed");
+        let _ = process_encoded(&input, options.clone()).expect("processor benchmark must succeed");
     });
 
     println!("dxtr_card_scan processor benchmark");
