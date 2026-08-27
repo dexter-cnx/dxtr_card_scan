@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('CardCaptureView keeps live streaming opt-in', () {
-    final view = CardCaptureView(
+    const view = CardCaptureView(
       onCompleted: _noopCompleted,
     );
 
