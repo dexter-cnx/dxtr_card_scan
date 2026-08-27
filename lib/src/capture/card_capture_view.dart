@@ -309,6 +309,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         ).viewportRectToSensor(frameRect);
       },
       onError: (error, _) {
+        _liveFeedbackController.clear();
         if (mounted) setState(() => _error = error);
       },
     );
@@ -477,6 +478,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         });
       }
     } catch (error) {
+      _liveFeedbackController.clearFrozenCapture();
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) {
