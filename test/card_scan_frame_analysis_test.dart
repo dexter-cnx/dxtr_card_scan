@@ -11,6 +11,11 @@ void main() {
         'bright_fraction': .02,
         'score': .95,
       },
+      'glare': {
+        'specular_fraction': .03,
+        'peak_tile_fraction': .42,
+        'score': .7,
+      },
       'card_coverage': .42,
       'detection_confidence': .88,
       'detection': {
@@ -33,12 +38,15 @@ void main() {
       },
     });
 
+    expect(result.quality.glare.specularFraction, .03);
+    expect(result.quality.glare.peakTileFraction, .42);
+    expect(result.quality.glare.score, .7);
     expect(result.quality.detectionConfidence, .88);
     expect(result.detection, isNotNull);
     expect(result.detection!.score.total, .88);
   });
 
-  test('allows a quality payload without detection', () {
+  test('allows an older quality payload without glare or detection', () {
     final result = CardScanFrameAnalysis.fromJson({
       'blur': {'laplacian_variance': 0.0, 'score': 0.0},
       'exposure': {
@@ -52,6 +60,7 @@ void main() {
       'detection': null,
     });
 
+    expect(result.quality.glare.score, 0.0);
     expect(result.detection, isNull);
   });
 }
