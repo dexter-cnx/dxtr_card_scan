@@ -50,7 +50,8 @@
 - [ ] SC-04 end-to-end physical auto-capture validation
 - [x] SC-05 advisory glare measurement (`specularFraction`, `peakTileFraction`, `score`)
 - [ ] SC-05 physical glare calibration + production threshold
-- [ ] SC-06 perspective/alignment score
+- [x] SC-06 advisory perspective/alignment geometry analysis
+- [ ] SC-06 physical perspective/alignment calibration + threshold
 - [ ] SC-07 corner-confidence feedback UI
 - [ ] SC-08 quality metadata in `CardCaptureResult`
 - [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
@@ -59,6 +60,8 @@
 SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. `CardCaptureView` owns the session, package shutter delegate and SC-02 viewport/frame mapping. Live streaming remains opt-in through an explicit `CardLiveStreamTransformResolver`; unresolved orientation/mirroring states skip analysis rather than guessing. Zoomed live analysis is also skipped until preview-to-stream crop mapping is physically calibrated. Still capture stops streaming before `takePicture()` and keeps it stopped through processing/confirmation, restarting only when the live camera surface is active again.
 
 SC-05 glare remains measurement-only until physical evidence establishes a reliable acceptance threshold. The Rust measurement separates overall near-white neutral coverage from localized hotspot concentration so ordinary bright exposure is not treated as equivalent to specular glare.
+
+SC-06 perspective/alignment analysis is derived from the existing detected quad in Dart, so it adds no native image-analysis pass. `perspectiveScore` combines opposite-edge length balance and opposite-edge parallelism; `alignmentScore` reuses the detector's center-alignment signal. Production thresholds remain calibration-gated.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
