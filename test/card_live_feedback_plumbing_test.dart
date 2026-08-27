@@ -10,7 +10,47 @@ void main() {
         config: const CardAutoCaptureConfig(enabled: false),
       ),
     );
-    final sample = CardLiveAnalysisSample(
+    final sample = _sample();
+
+    final decision = await coordinator.submit(sample);
+
+    expect(observed, same(sample));
+    expect(decision, isNotNull);
+    expect(decision!.shouldCapture, isFalse);
+  });
+
+  test('feedback callback failure does not block auto capture', () async {
+    var captured = 0;
+    Object? reportedError;
+    final coordinator = CardLiveCaptureCoordinator(
+      onAcceptedSample: (_) => throw StateError('feedback disposed'),
+      onAcceptedSampleError: (error, _) => reportedError = error,
+      stabilityTracker: CardCaptureStabilityTracker(
+        config: const CardCaptureStabilityConfig(requiredStableFrames: 1),
+      ),
+      autoCapturePolicy: CardAutoCapturePolicy(
+        config: const CardAutoCaptureConfig(
+          enabled: true,
+          minimumQualityScore: .5,
+          cooldown: Duration.zero,
+        ),
+      ),
+      capture: () async {
+        captured += 1;
+        return null;
+      },
+    );
+
+    final decision = await coordinator.submit(_sample());
+
+    expect(reportedError, isA<StateError>());
+    expect(decision, isNotNull);
+    expect(decision!.shouldCapture, isTrue);
+    expect(captured, 1);
+  });
+}
+
+CardLiveAnalysisSample _sample() => CardLiveAnalysisSample(
       quality: CardCaptureQualityAssessment.fromAnalysis(
         const CardScanQualityAnalysis(
           blur: CardScanBlurQuality(laplacianVariance: 400, score: .9),
@@ -31,14 +71,6 @@ void main() {
       ),
       detection: _detection,
     );
-
-    final decision = await coordinator.submit(sample);
-
-    expect(observed, same(sample));
-    expect(decision, isNotNull);
-    expect(decision!.shouldCapture, isFalse);
-  });
-}
 
 const _detection = CardScanDetection(
   quad: ProcessorQuad(
