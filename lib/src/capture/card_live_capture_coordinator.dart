@@ -5,6 +5,10 @@ import 'card_capture_stability_tracker.dart';
 
 typedef CardLiveCaptureTrigger = Future<Object?> Function();
 typedef CardLiveAnalysisSampleCallback = void Function(CardLiveAnalysisSample sample);
+typedef CardLiveAnalysisSampleErrorCallback = void Function(
+  Object error,
+  StackTrace stackTrace,
+);
 
 /// One quality/detection sample produced by the live analysis pipeline.
 class CardLiveAnalysisSample {
@@ -29,6 +33,7 @@ class CardLiveCaptureCoordinator {
     CardAutoCapturePolicy? autoCapturePolicy,
     CardLiveCaptureTrigger? capture,
     this.onAcceptedSample,
+    this.onAcceptedSampleError,
     this.analysisInterval = const Duration(milliseconds: 180),
     DateTime Function()? clock,
   })  : _stabilityTracker =
@@ -40,6 +45,7 @@ class CardLiveCaptureCoordinator {
   final CardCaptureStabilityTracker _stabilityTracker;
   final CardAutoCapturePolicy _autoCapturePolicy;
   final CardLiveAnalysisSampleCallback? onAcceptedSample;
+  final CardLiveAnalysisSampleErrorCallback? onAcceptedSampleError;
   final Duration analysisInterval;
   final DateTime Function() _clock;
 
@@ -74,6 +80,8 @@ class CardLiveCaptureCoordinator {
   /// Returns `null` when the sample is throttled. Accepted samples are exposed
   /// through [onAcceptedSample] before stability/auto-capture evaluation so
   /// advisory UI can observe the same frame without changing capture policy.
+  /// Failures in that advisory callback are isolated and reported through
+  /// [onAcceptedSampleError]; they never stop policy evaluation or capture.
   /// When auto capture is enabled and the policy emits `shouldCapture`, the
   /// attached capture delegate is invoked at most once at a time. Re-entrant
   /// samples cannot trigger a second shutter while the previous capture is
@@ -88,7 +96,12 @@ class CardLiveCaptureCoordinator {
       }
     }
     _lastAcceptedAt = now;
-    onAcceptedSample?.call(sample);
+
+    try {
+      onAcceptedSample?.call(sample);
+    } catch (error, stackTrace) {
+      onAcceptedSampleError?.call(error, stackTrace);
+    }
 
     final stability = _stabilityTracker.addSample(
       assessment: sample.quality,
