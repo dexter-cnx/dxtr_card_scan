@@ -88,13 +88,15 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 - [x] decide root-barrel disposition of low-level live/orchestration exports
 - [x] add public API compatibility regression suite
 - [x] document supported advanced API contracts
-- [ ] declaration-level audit of remaining root-barrel exports
-- [ ] neutral public-name audit
-- [ ] intentional public defaults/constructor audit
-- [ ] stable public API
+- [x] declaration-level audit of remaining root-barrel exports
+- [x] neutral public-name audit
+- [x] intentional public defaults/constructor audit
+- [x] stable public API
 - [ ] validated Android/iOS/macOS support
 - [ ] benchmarks
 - [ ] full example app
 - [ ] package documentation
 
-The primary compatibility surface now lives in `dxtr_card_scan.dart`. Lower-level orchestration is deliberately available through `dxtr_card_scan_advanced.dart`, which re-exports the primary API plus the live session/coordinator/analyzer, stability state machine, package capture pipeline, and feedback-controller layer. `test/public_api_boundary_test.dart` guards this split. The remaining 1.0 API work is a declaration-level audit of the reduced root barrel, naming/default review, and final stability sign-off.
+The primary compatibility surface lives in `dxtr_card_scan.dart`. Lower-level orchestration is deliberately available through `dxtr_card_scan_advanced.dart`, which re-exports the primary API plus the live session/coordinator/analyzer, stability state machine, package capture pipeline, and feedback-controller layer. `test/public_api_boundary_test.dart` guards this split. The final API contract, neutral naming result, and intentional 1.0 defaults are recorded in `docs/1.0_API_STABILITY_SIGNOFF.md`.
+
+The `stable public API` checkbox covers the Dart API compatibility contract only. Physical calibration evidence, production thresholds, platform validation, benchmarks, example completeness, and package documentation remain separate release gates and are not implied complete by this sign-off.
