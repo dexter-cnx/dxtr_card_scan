@@ -81,6 +81,18 @@ class CardCameraImageAdapter {
     );
   }
 
+  /// Returns the pixel-space width/height ratio of the quantized ROI.
+  ///
+  /// This uses the same floor/ceil rules as [encodeJpeg], so downstream
+  /// geometry can restore the exact analyzed image aspect ratio.
+  double roiAspectRatio(CardCameraFrame frame, NormalizedRect roi) {
+    if (frame.width <= 0 || frame.height <= 0) {
+      throw ArgumentError('frame dimensions must be positive');
+    }
+    final bounds = _quantizeRoi(frame, roi);
+    return bounds.width / bounds.height;
+  }
+
   /// Encodes the requested raw-frame ROI as JPEG for Rust live analysis.
   Uint8List encodeJpeg(
     CardCameraFrame frame, {
