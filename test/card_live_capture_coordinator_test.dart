@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dxtr_card_scan/dxtr_card_scan.dart';
+import 'package:dxtr_card_scan/dxtr_card_scan_advanced.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
