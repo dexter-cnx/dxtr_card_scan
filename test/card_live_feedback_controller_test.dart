@@ -34,7 +34,7 @@ void main() {
     expect(controller.value, isNotNull);
 
     controller.accept(
-      const CardLiveAnalysisSample(
+      CardLiveAnalysisSample(
         quality: _quality,
         detection: null,
       ),
@@ -44,10 +44,19 @@ void main() {
   });
 }
 
-const _quality = CardCaptureQualityAssessment(
-  score: 1,
-  ready: true,
-  issues: <CardCaptureQualityIssue>[],
+final _quality = CardCaptureQualityAssessment.fromAnalysis(
+  const CardScanQualityAnalysis(
+    blur: CardScanBlurQuality(laplacianVariance: 400, score: .9),
+    exposure: CardScanExposureQuality(
+      meanLuma: .5,
+      darkFraction: .01,
+      brightFraction: .01,
+      score: .95,
+    ),
+    glare: CardScanGlareQuality.none(),
+    cardCoverage: .5,
+    detectionConfidence: .9,
+  ),
 );
 
 const _detection = CardScanDetection(
