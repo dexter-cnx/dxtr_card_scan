@@ -42,6 +42,63 @@ void main() {
 
     expect(controller.value, isNull);
   });
+
+  test('frozen metadata survives live feedback clear', () {
+    final controller = CardLiveFeedbackController();
+    addTearDown(controller.dispose);
+
+    controller.accept(
+      CardLiveAnalysisSample(
+        quality: _quality,
+        detection: _detection,
+        imageAspectRatio: 2,
+      ),
+    );
+    controller.freezeForCapture();
+    controller.clear();
+
+    final metadata = controller.frozenCaptureMetadata;
+    expect(metadata, isNotNull);
+    expect(metadata!.quality, same(_quality));
+    expect(metadata.detection, same(_detection));
+    expect(metadata.imageAspectRatio, 2);
+  });
+
+  test('ineligible live state produces no frozen metadata', () {
+    final controller = CardLiveFeedbackController();
+    addTearDown(controller.dispose);
+
+    controller.accept(
+      CardLiveAnalysisSample(
+        quality: _quality,
+        detection: _detection,
+        imageAspectRatio: 2,
+      ),
+    );
+    controller.clear();
+    controller.freezeForCapture();
+
+    expect(controller.frozenCaptureMetadata, isNull);
+  });
+
+  test('frozen metadata can be cleared after capture completes', () {
+    final controller = CardLiveFeedbackController();
+    addTearDown(controller.dispose);
+
+    controller.accept(
+      CardLiveAnalysisSample(
+        quality: _quality,
+        detection: _detection,
+        imageAspectRatio: 2,
+      ),
+    );
+    controller.freezeForCapture();
+    expect(controller.frozenCaptureMetadata, isNotNull);
+
+    controller.clearFrozenCapture();
+
+    expect(controller.frozenCaptureMetadata, isNull);
+  });
 }
 
 final _quality = CardCaptureQualityAssessment.fromAnalysis(

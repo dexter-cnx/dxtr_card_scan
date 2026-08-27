@@ -309,6 +309,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         ).viewportRectToSensor(frameRect);
       },
       onError: (error, _) {
+        _liveFeedbackController.clear();
         if (mounted) setState(() => _error = error);
       },
     );
@@ -375,6 +376,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       return null;
     }
 
+    _liveFeedbackController.freezeForCapture();
     setState(() {
       _busy = true;
       _error = null;
@@ -423,6 +425,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       }
       return shot;
     } catch (error) {
+      _liveFeedbackController.clearFrozenCapture();
       if (mounted) {
         setState(() {
           _error = error;
@@ -464,8 +467,10 @@ class _CardCaptureViewState extends State<CardCaptureView>
           cropped: rectified,
           processed: processed,
           sourceRoi: roi,
+          qualityMetadata: _liveFeedbackController.frozenCaptureMetadata,
         ),
       );
+      _liveFeedbackController.clearFrozenCapture();
       if (mounted) {
         setState(() {
           _rectified = null;
@@ -473,6 +478,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         });
       }
     } catch (error) {
+      _liveFeedbackController.clearFrozenCapture();
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) {
@@ -548,6 +554,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         labels: widget.labels,
         busy: _busy,
         onRetake: () {
+          _liveFeedbackController.clearFrozenCapture();
           setState(() {
             _rectified = null;
             _processingPreviewPath = null;
