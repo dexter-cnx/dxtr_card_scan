@@ -17,13 +17,16 @@ import 'card_capture_controller.dart';
 import 'card_capture_controls_config.dart';
 import 'card_capture_result.dart';
 import 'card_capture_view.dart';
+import 'card_native_scanner.dart';
 
-/// Unified capture surface that lets users switch from Camera to Gallery
-/// without leaving the scan flow.
+/// Unified capture surface that lets users switch between Camera, Gallery and
+/// an optional host-provided native document scanner without leaving the scan
+/// flow.
 ///
-/// The Gallery shortcut is package-owned, but applications can replace the
-/// source picker through [pickGalleryImagePath]. The selected file continues
-/// through the package-owned Gallery crop and native processing pipeline.
+/// Gallery and native-scanner images both continue through the package-owned
+/// Gallery crop and native processing pipeline. Native scanner implementations
+/// remain host-injected so this package does not depend directly on a platform
+/// scanner SDK.
 class CardCameraGalleryCaptureView extends StatefulWidget {
   const CardCameraGalleryCaptureView({
     required this.onCompleted,
@@ -46,6 +49,9 @@ class CardCameraGalleryCaptureView extends StatefulWidget {
     this.resolutionPreset = ResolutionPreset.max,
     this.pickGalleryImagePath,
     this.showGalleryShortcut = true,
+    this.nativeScanner,
+    this.showNativeScannerShortcut = true,
+    this.nativeScannerTooltip = 'Scan document',
     this.onRawCaptured,
     this.onCropReady,
     this.onClose,
@@ -68,6 +74,17 @@ class CardCameraGalleryCaptureView extends StatefulWidget {
   final ResolutionPreset resolutionPreset;
   final GalleryImagePathPicker? pickGalleryImagePath;
   final bool showGalleryShortcut;
+
+  /// Optional host-provided native document scanner fallback.
+  final CardNativeScanner? nativeScanner;
+
+  /// Whether to show the native scanner shortcut when [nativeScanner] reports
+  /// that it is available.
+  final bool showNativeScannerShortcut;
+
+  /// Tooltip used by the package-owned native scanner shortcut.
+  final String nativeScannerTooltip;
+
   final CardCaptureImageCallback? onRawCaptured;
   final CardCaptureImageCallback? onCropReady;
   final CardCaptureResultCallback onCompleted;
@@ -82,7 +99,52 @@ class _CardCameraGalleryCaptureViewState
     extends State<CardCameraGalleryCaptureView> {
   String? _gallerySourcePath;
   bool _pickingGallery = false;
+  bool _nativeScannerAvailable = false;
+  bool _scanningNative = false;
+  List<String> _nativeScanPaths = const [];
+  int _nativeScanIndex = 0;
   Object? _pickerError;
+
+  bool get _nativeScanActive => _nativeScanPaths.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshNativeScannerAvailability();
+  }
+
+  @override
+  void didUpdateWidget(CardCameraGalleryCaptureView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.nativeScanner, widget.nativeScanner) ||
+        oldWidget.showNativeScannerShortcut !=
+            widget.showNativeScannerShortcut) {
+      _cancelNativeScan();
+      _refreshNativeScannerAvailability();
+    }
+  }
+
+  Future<void> _refreshNativeScannerAvailability() async {
+    final scanner = widget.nativeScanner;
+    if (scanner == null || !widget.showNativeScannerShortcut) {
+      if (mounted) setState(() => _nativeScannerAvailable = false);
+      return;
+    }
+
+    try {
+      final available = await scanner.isAvailable();
+      if (mounted && identical(scanner, widget.nativeScanner)) {
+        setState(() => _nativeScannerAvailable = available);
+      }
+    } catch (error) {
+      if (mounted && identical(scanner, widget.nativeScanner)) {
+        setState(() {
+          _nativeScannerAvailable = false;
+          _pickerError = error;
+        });
+      }
+    }
+  }
 
   Future<String?> _defaultPickGalleryImagePath() async {
     if (Platform.isMacOS) {
@@ -107,7 +169,7 @@ class _CardCameraGalleryCaptureViewState
   }
 
   Future<void> _openGallery() async {
-    if (_pickingGallery) return;
+    if (_pickingGallery || _scanningNative) return;
     setState(() {
       _pickingGallery = true;
       _pickerError = null;
@@ -117,6 +179,7 @@ class _CardCameraGalleryCaptureViewState
       final path = await (widget.pickGalleryImagePath ??
           _defaultPickGalleryImagePath)();
       if (path != null && mounted) {
+        _cancelNativeScan();
         setState(() => _gallerySourcePath = path);
       }
     } catch (error) {
@@ -126,9 +189,69 @@ class _CardCameraGalleryCaptureViewState
     }
   }
 
+  Future<void> _openNativeScanner() async {
+    final scanner = widget.nativeScanner;
+    if (scanner == null ||
+        !_nativeScannerAvailable ||
+        _scanningNative ||
+        _pickingGallery) {
+      return;
+    }
+
+    setState(() {
+      _scanningNative = true;
+      _pickerError = null;
+    });
+
+    try {
+      final result = await scanner.scan();
+      if (!mounted || !identical(scanner, widget.nativeScanner)) return;
+      if (result == null) return;
+
+      setState(() {
+        _nativeScanPaths = result.imagePaths;
+        _nativeScanIndex = 0;
+        _gallerySourcePath = result.imagePaths.first;
+      });
+    } catch (error) {
+      if (mounted && identical(scanner, widget.nativeScanner)) {
+        setState(() => _pickerError = error);
+      }
+    } finally {
+      if (mounted && identical(scanner, widget.nativeScanner)) {
+        setState(() => _scanningNative = false);
+      }
+    }
+  }
+
+  void _cancelNativeScan() {
+    _nativeScanPaths = const [];
+    _nativeScanIndex = 0;
+  }
+
+  void _closeSourceFlow() {
+    setState(() {
+      _gallerySourcePath = null;
+      _cancelNativeScan();
+    });
+  }
+
   Future<void> _completeGallery(CardCaptureResult result) async {
     await widget.onCompleted(result);
-    if (mounted) setState(() => _gallerySourcePath = null);
+    if (!mounted) return;
+
+    if (_nativeScanActive && _nativeScanIndex + 1 < _nativeScanPaths.length) {
+      setState(() {
+        _nativeScanIndex += 1;
+        _gallerySourcePath = _nativeScanPaths[_nativeScanIndex];
+      });
+      return;
+    }
+
+    setState(() {
+      _gallerySourcePath = null;
+      _cancelNativeScan();
+    });
   }
 
   @override
@@ -144,12 +267,17 @@ class _CardCameraGalleryCaptureViewState
         onOriginalReady: widget.onRawCaptured,
         onCropReady: widget.onCropReady,
         onCompleted: _completeGallery,
-        onClose: () => setState(() => _gallerySourcePath = null),
+        onClose: _closeSourceFlow,
       );
     }
 
-    final galleryShortcutAvailable = widget.showGalleryShortcut &&
+    final sourceShortcutAvailable =
         widget.cameraConfirmationMode == CaptureConfirmationMode.none;
+    final galleryShortcutAvailable =
+        widget.showGalleryShortcut && sourceShortcutAvailable;
+    final nativeScannerShortcutAvailable = _nativeScannerAvailable &&
+        widget.showNativeScannerShortcut &&
+        sourceShortcutAvailable;
 
     return Stack(
       fit: StackFit.expand,
@@ -173,10 +301,20 @@ class _CardCameraGalleryCaptureViewState
           onClose: widget.onClose,
         ),
         if (galleryShortcutAvailable)
-          _GalleryShortcut(
+          _SourceShortcut(
+            alignment: Alignment.bottomLeft,
             busy: _pickingGallery,
             tooltip: widget.galleryLabels.pickAction,
+            icon: Icons.photo_library_outlined,
             onPressed: _openGallery,
+          ),
+        if (nativeScannerShortcutAvailable)
+          _SourceShortcut(
+            alignment: Alignment.bottomRight,
+            busy: _scanningNative,
+            tooltip: widget.nativeScannerTooltip,
+            icon: Icons.document_scanner_outlined,
+            onPressed: _openNativeScanner,
           ),
         if (_pickerError != null)
           Align(
@@ -202,28 +340,28 @@ class _CardCameraGalleryCaptureViewState
   }
 }
 
-class _GalleryShortcut extends StatelessWidget {
-  const _GalleryShortcut({
+class _SourceShortcut extends StatelessWidget {
+  const _SourceShortcut({
+    required this.alignment,
     required this.busy,
     required this.tooltip,
+    required this.icon,
     required this.onPressed,
   });
 
+  final Alignment alignment;
   final bool busy;
   final String tooltip;
+  final IconData icon;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final landscape = MediaQuery.orientationOf(context) == Orientation.landscape;
     return SafeArea(
       child: Align(
-        alignment: landscape ? Alignment.bottomCenter : Alignment.bottomLeft,
+        alignment: alignment,
         child: Padding(
-          padding: EdgeInsets.only(
-            left: landscape ? 0 : 18,
-            bottom: landscape ? 18 : 24,
-          ),
+          padding: const EdgeInsets.only(left: 18, right: 18, bottom: 24),
           child: IconButton.filledTonal(
             onPressed: busy ? null : onPressed,
             tooltip: tooltip,
@@ -232,7 +370,7 @@ class _GalleryShortcut extends StatelessWidget {
                     dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.photo_library_outlined),
+                : Icon(icon),
           ),
         ),
       ),
