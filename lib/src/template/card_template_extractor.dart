@@ -8,7 +8,7 @@ import 'card_template.dart';
 class CardTemplateRegionExtraction {
   CardTemplateRegionExtraction({
     required this.name,
-    required this.bytes,
+    required Uint8List bytes,
     required this.width,
     required this.height,
   }) : bytes = Uint8List.fromList(bytes);
@@ -55,22 +55,16 @@ class CardTemplateExtractor {
     return List.unmodifiable(
       template.regions.map((region) {
         final rect = region.rect;
-        final left = (rect.left * decoded.width)
-            .floor()
-            .clamp(0, decoded.width - 1)
-            .toInt();
-        final top = (rect.top * decoded.height)
-            .floor()
-            .clamp(0, decoded.height - 1)
-            .toInt();
+        final left =
+            (rect.left * decoded.width).floor().clamp(0, decoded.width - 1);
+        final top =
+            (rect.top * decoded.height).floor().clamp(0, decoded.height - 1);
         final right = (rect.right * decoded.width)
             .ceil()
-            .clamp(left + 1, decoded.width)
-            .toInt();
+            .clamp(left + 1, decoded.width);
         final bottom = (rect.bottom * decoded.height)
             .ceil()
-            .clamp(top + 1, decoded.height)
-            .toInt();
+            .clamp(top + 1, decoded.height);
         final width = right - left;
         final height = bottom - top;
         final cropped = img.copyCrop(
