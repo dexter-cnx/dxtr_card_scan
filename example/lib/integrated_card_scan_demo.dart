@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'camera_scan_page.dart';
 import 'gallery_scan_page.dart';
+import 'unified_scan_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,37 +37,60 @@ class _HomePage extends StatelessWidget {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
+          child: ListView(
+            shrinkWrap: true,
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton.icon(
-                  onPressed: Platform.isMacOS
-                      ? null
-                      : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const CameraScanPage(),
-                            ),
+            children: [
+              Text(
+                '1.0 primary flows',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Use the unified Camera + Gallery flow for normal app integration. '
+                'The standalone examples below show the lower-level primary widgets.',
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: unifiedCameraAvailable
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const UnifiedScanPage(),
                           ),
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: Text(
-                    Platform.isMacOS ? 'Camera (mobile only)' : 'Camera',
+                        )
+                    : null,
+                icon: const Icon(Icons.document_scanner_outlined),
+                label: Text(
+                  unifiedCameraAvailable
+                      ? 'Unified Camera + Gallery'
+                      : 'Unified Camera + Gallery (mobile only)',
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: Platform.isMacOS
+                    ? null
+                    : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const CameraScanPage(),
+                          ),
+                        ),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: Text(
+                  Platform.isMacOS ? 'Camera (mobile only)' : 'Camera only',
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const GalleryScanPage(),
                   ),
                 ),
-                const SizedBox(height: 16),
-                FilledButton.tonalIcon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const GalleryScanPage(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Gallery'),
-                ),
-              ],
-            ),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Gallery only'),
+              ),
+            ],
           ),
         ),
       ),
