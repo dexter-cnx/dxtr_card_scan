@@ -4,6 +4,7 @@ import 'card_auto_capture_policy.dart';
 import 'card_capture_stability_tracker.dart';
 
 typedef CardLiveCaptureTrigger = Future<Object?> Function();
+typedef CardLiveAnalysisSampleCallback = void Function(CardLiveAnalysisSample sample);
 
 /// One quality/detection sample produced by the live analysis pipeline.
 class CardLiveAnalysisSample {
@@ -27,6 +28,7 @@ class CardLiveCaptureCoordinator {
     CardCaptureStabilityTracker? stabilityTracker,
     CardAutoCapturePolicy? autoCapturePolicy,
     CardLiveCaptureTrigger? capture,
+    this.onAcceptedSample,
     this.analysisInterval = const Duration(milliseconds: 180),
     DateTime Function()? clock,
   })  : _stabilityTracker =
@@ -37,6 +39,7 @@ class CardLiveCaptureCoordinator {
 
   final CardCaptureStabilityTracker _stabilityTracker;
   final CardAutoCapturePolicy _autoCapturePolicy;
+  final CardLiveAnalysisSampleCallback? onAcceptedSample;
   final Duration analysisInterval;
   final DateTime Function() _clock;
 
@@ -68,10 +71,13 @@ class CardLiveCaptureCoordinator {
 
   /// Submits one already-analyzed ROI sample.
   ///
-  /// Returns `null` when the sample is throttled. When auto capture is enabled
-  /// and the policy emits `shouldCapture`, the attached capture delegate is
-  /// invoked at most once at a time. Re-entrant samples cannot trigger a second
-  /// shutter while the previous capture is still in flight.
+  /// Returns `null` when the sample is throttled. Accepted samples are exposed
+  /// through [onAcceptedSample] before stability/auto-capture evaluation so
+  /// advisory UI can observe the same frame without changing capture policy.
+  /// When auto capture is enabled and the policy emits `shouldCapture`, the
+  /// attached capture delegate is invoked at most once at a time. Re-entrant
+  /// samples cannot trigger a second shutter while the previous capture is
+  /// still in flight.
   Future<CardAutoCaptureDecision?> submit(CardLiveAnalysisSample sample) async {
     final now = _clock();
     final previous = _lastAcceptedAt;
@@ -82,6 +88,7 @@ class CardLiveCaptureCoordinator {
       }
     }
     _lastAcceptedAt = now;
+    onAcceptedSample?.call(sample);
 
     final stability = _stabilityTracker.addSample(
       assessment: sample.quality,
