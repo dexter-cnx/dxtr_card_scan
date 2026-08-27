@@ -262,6 +262,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
         !mounted ||
         _rectified != null ||
         _busy) {
+      _liveFeedbackController.clear();
       return;
     }
 
@@ -276,20 +277,30 @@ class _CardCaptureViewState extends State<CardCaptureView>
       roiResolver: (image) {
         final frameRect = _lastFrameRect;
         if (_viewportSize.isEmpty || frameRect == null || !_captureEnabled) {
+          _liveFeedbackController.clear();
           return null;
         }
 
         // The platform camera zoom crop still requires physical calibration.
         // Do not analyze a zoomed stream until that crop mapping is explicit.
-        if ((_zoom - _minZoom).abs() > 0.0001) return null;
+        if ((_zoom - _minZoom).abs() > 0.0001) {
+          _liveFeedbackController.clear();
+          return null;
+        }
 
         final transformResolver = widget.liveStreamTransformResolver;
-        if (transformResolver == null) return null;
+        if (transformResolver == null) {
+          _liveFeedbackController.clear();
+          return null;
+        }
         final transform = transformResolver(
           camera.description,
           camera.value.deviceOrientation,
         );
-        if (transform == null) return null;
+        if (transform == null) {
+          _liveFeedbackController.clear();
+          return null;
+        }
 
         return CameraGeometryMapper(
           viewportSize: _viewportSize,
@@ -309,6 +320,7 @@ class _CardCaptureViewState extends State<CardCaptureView>
       if (identical(_liveSession, session)) {
         _liveSession = null;
       }
+      _liveFeedbackController.clear();
       if (mounted) setState(() => _error = error);
     }
   }
@@ -504,6 +516,9 @@ class _CardCaptureViewState extends State<CardCaptureView>
     final camera = _camera;
     if (camera == null) return;
     final zoom = value.clamp(_minZoom, _maxZoom).toDouble();
+    if ((zoom - _minZoom).abs() > 0.0001) {
+      _liveFeedbackController.clear();
+    }
     try {
       await camera.setZoomLevel(zoom);
       if (mounted) setState(() => _zoom = zoom);
