@@ -61,7 +61,7 @@
 - [x] SC-09 capture profile preset contract (`ocr`, `fast`, `archival`, `manual`)
 - [x] SC-09 profile-driven `CardCaptureView` factory without breaking its const constructor
 - [x] SC-10 platform-neutral native scanner fallback contract
-- [ ] SC-10 integrate injected native scanner into unified capture flow
+- [x] SC-10 integrate injected native scanner into unified capture flow
 
 SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. `CardCaptureView` owns the session, package shutter delegate and SC-02 viewport/frame mapping. Live streaming remains opt-in through an explicit `CardLiveStreamTransformResolver`; unresolved orientation/mirroring states skip analysis rather than guessing. Zoomed live analysis is also skipped until preview-to-stream crop mapping is physically calibrated. Still capture stops streaming before `takePicture()` and keeps it stopped through processing/confirmation, restarting only when the live camera surface is active again.
 
@@ -75,7 +75,7 @@ SC-08 keeps result metadata optional so existing camera/gallery callers remain s
 
 SC-09 introduces named processor presets for `manual`, `ocr`, `fast`, and `archival` capture goals. Built-in profiles deliberately leave automatic shutter dispatch disabled so profile selection cannot bypass physical calibration requirements. Profile wiring uses `CardCaptureProfile.<profile>.captureView(...)`, which applies the profile defaults at runtime while keeping the original `const CardCaptureView(...)` constructor unchanged. Explicit `processOptions` and `autoCapture` arguments remain authoritative over profile defaults.
 
-SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` contract rather than coupling the package core to VisionKit, ML Kit, or another platform-specific dependency. `CardNativeScanResult` preserves page order and supports multi-page scans. Availability is queried explicitly; `scan()` returning null represents user cancellation. The follow-up integration will feed scanner-produced image paths into the existing crop/processing flow instead of creating a second processing pipeline.
+SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` contract rather than coupling the package core to VisionKit, ML Kit, or another platform-specific dependency. `CardNativeScanResult` preserves page order and supports multi-page scans. `CardCameraGalleryCaptureView` queries scanner availability explicitly, exposes the scanner only when available, and feeds each scanned image through the existing `CardGalleryCropView` pipeline in page order. `onCompleted` is emitted once per processed page; closing the source flow cancels the remaining native-scan pages. `scan()` returning null remains a no-op user cancellation, and no second processing pipeline is introduced.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
