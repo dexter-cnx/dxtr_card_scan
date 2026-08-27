@@ -40,21 +40,53 @@ class CardScanExposureQuality {
   }
 }
 
+/// Advisory specular-highlight measurement for glare detection.
+class CardScanGlareQuality {
+  const CardScanGlareQuality({
+    required this.specularFraction,
+    required this.peakTileFraction,
+    required this.score,
+  });
+
+  const CardScanGlareQuality.none()
+      : specularFraction = 0,
+        peakTileFraction = 0,
+        score = 0;
+
+  final double specularFraction;
+  final double peakTileFraction;
+
+  /// Normalized glare-likelihood signal. This is not a calibrated acceptance
+  /// threshold; physical evidence must define any production gate.
+  final double score;
+
+  factory CardScanGlareQuality.fromJson(Map<String, Object?> json) {
+    return CardScanGlareQuality(
+      specularFraction: (json['specular_fraction'] as num).toDouble(),
+      peakTileFraction: (json['peak_tile_fraction'] as num).toDouble(),
+      score: (json['score'] as num).toDouble(),
+    );
+  }
+}
+
 /// Measurement-only image quality analysis.
 class CardScanQualityAnalysis {
   const CardScanQualityAnalysis({
     required this.blur,
     required this.exposure,
+    this.glare = const CardScanGlareQuality.none(),
     required this.cardCoverage,
     required this.detectionConfidence,
   });
 
   final CardScanBlurQuality blur;
   final CardScanExposureQuality exposure;
+  final CardScanGlareQuality glare;
   final double cardCoverage;
   final double detectionConfidence;
 
   factory CardScanQualityAnalysis.fromJson(Map<String, Object?> json) {
+    final rawGlare = json['glare'];
     return CardScanQualityAnalysis(
       blur: CardScanBlurQuality.fromJson(
         (json['blur'] as Map<Object?, Object?>).cast<String, Object?>(),
@@ -62,6 +94,11 @@ class CardScanQualityAnalysis {
       exposure: CardScanExposureQuality.fromJson(
         (json['exposure'] as Map<Object?, Object?>).cast<String, Object?>(),
       ),
+      glare: rawGlare == null
+          ? const CardScanGlareQuality.none()
+          : CardScanGlareQuality.fromJson(
+              (rawGlare as Map<Object?, Object?>).cast<String, Object?>(),
+            ),
       cardCoverage: (json['card_coverage'] as num).toDouble(),
       detectionConfidence: (json['detection_confidence'] as num).toDouble(),
     );
