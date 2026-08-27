@@ -1,4 +1,4 @@
-use image::{imageops::FilterType, DynamicImage, GrayImage};
+use image::{imageops::FilterType, DynamicImage, GrayImage, RgbImage};
 use serde::Serialize;
 
 use crate::{
@@ -9,6 +9,8 @@ use crate::{
 const ANALYSIS_MAX_DIMENSION: u32 = 960;
 const DARK_LUMA_THRESHOLD: u8 = 16;
 const BRIGHT_LUMA_THRESHOLD: u8 = 239;
+const GLARE_CHANNEL_THRESHOLD: u8 = 245;
+const GLARE_TILE_SIZE: u32 = 32;
 const SHARPNESS_NORMALIZATION: f32 = 400.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -25,10 +27,23 @@ pub struct ExposureMeasurement {
     pub score: f32,
 }
 
+/// Advisory specular-highlight measurement.
+///
+/// `specular_fraction` measures near-white neutral pixels across the frame,
+/// while `peak_tile_fraction` captures localized hotspots. `score` is a
+/// normalized glare-likelihood signal, not a calibrated production threshold.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct GlareMeasurement {
+    pub specular_fraction: f32,
+    pub peak_tile_fraction: f32,
+    pub score: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 pub struct QualityAnalysis {
     pub blur: BlurMeasurement,
     pub exposure: ExposureMeasurement,
+    pub glare: GlareMeasurement,
     pub card_coverage: f32,
     pub detection_confidence: f32,
     pub detection: Option<DetectionResult>,
@@ -37,13 +52,16 @@ pub struct QualityAnalysis {
 pub fn analyze_quality(image: &DynamicImage) -> QualityAnalysis {
     let working = resize_for_analysis(image);
     let gray = working.to_luma8();
+    let rgb = working.to_rgb8();
     let blur = measure_blur(&gray);
     let exposure = measure_exposure(&gray);
+    let glare = measure_glare(&rgb);
     let detection = detect_card_quad_with_contrast_fallback(&working, DetectionOptions::default());
 
     QualityAnalysis {
         blur,
         exposure,
+        glare,
         card_coverage: detection.as_ref().map(card_coverage).unwrap_or(0.0),
         detection_confidence: detection
             .as_ref()
@@ -150,6 +168,60 @@ fn measure_exposure(gray: &GrayImage) -> ExposureMeasurement {
     }
 }
 
+fn measure_glare(rgb: &RgbImage) -> GlareMeasurement {
+    let count = (rgb.width() as usize).saturating_mul(rgb.height() as usize);
+    if count == 0 {
+        return GlareMeasurement {
+            specular_fraction: 0.0,
+            peak_tile_fraction: 0.0,
+            score: 0.0,
+        };
+    }
+
+    let tiles_x = rgb.width().div_ceil(GLARE_TILE_SIZE).max(1);
+    let tiles_y = rgb.height().div_ceil(GLARE_TILE_SIZE).max(1);
+    let mut tile_specular = vec![0u32; (tiles_x * tiles_y) as usize];
+    let mut specular = 0usize;
+
+    for (x, y, pixel) in rgb.enumerate_pixels() {
+        let [r, g, b] = pixel.0;
+        if r >= GLARE_CHANNEL_THRESHOLD
+            && g >= GLARE_CHANNEL_THRESHOLD
+            && b >= GLARE_CHANNEL_THRESHOLD
+        {
+            specular += 1;
+            let tile_x = x / GLARE_TILE_SIZE;
+            let tile_y = y / GLARE_TILE_SIZE;
+            tile_specular[(tile_y * tiles_x + tile_x) as usize] += 1;
+        }
+    }
+
+    let specular_fraction = specular as f32 / count as f32;
+    let full_tile_count = (GLARE_TILE_SIZE * GLARE_TILE_SIZE) as f32;
+    let peak_tile_fraction = tile_specular
+        .iter()
+        .map(|&tile_specular_count| tile_specular_count as f32 / full_tile_count)
+        .fold(0.0f32, f32::max);
+
+    // Edge tiles intentionally keep the same 32x32 normalization as interior
+    // tiles (equivalent to padding missing pixels as non-specular). This keeps
+    // a tiny remainder tile from turning a single bright border pixel into a
+    // 100% hotspot purely because of image dimensions.
+    //
+    // Keep this deliberately advisory. The normalization constants only make
+    // the signal convenient to consume; physical evidence must calibrate any
+    // future acceptance threshold.
+    let global_signal = (specular_fraction / 0.08).clamp(0.0, 1.0);
+    let hotspot_signal = (peak_tile_fraction / 0.35).clamp(0.0, 1.0);
+    let score = global_signal.max(hotspot_signal);
+
+    GlareMeasurement {
+        specular_fraction,
+        peak_tile_fraction,
+        score,
+    }
+}
+
 fn card_coverage(result: &DetectionResult) -> f32 {
     polygon_area(result.quad.corners).clamp(0.0, 1.0)
 }
@@ -166,7 +238,7 @@ fn polygon_area(points: [Point; 4]) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use image::{DynamicImage, GrayImage, Luma};
+    use image::{DynamicImage, GrayImage, Luma, Rgb, RgbImage};
 
     use super::*;
 
@@ -200,11 +272,49 @@ mod tests {
     }
 
     #[test]
+    fn localized_neutral_highlight_scores_as_glare() {
+        let clean = RgbImage::from_pixel(128, 96, Rgb([160, 160, 160]));
+        let mut glare = clean.clone();
+        for y in 20..52 {
+            for x in 36..68 {
+                glare.put_pixel(x, y, Rgb([255, 255, 255]));
+            }
+        }
+
+        let clean_measurement = measure_glare(&clean);
+        let glare_measurement = measure_glare(&glare);
+        assert_eq!(clean_measurement.score, 0.0);
+        assert!(glare_measurement.specular_fraction > 0.0);
+        assert!(glare_measurement.peak_tile_fraction > 0.0);
+        assert!(glare_measurement.score > clean_measurement.score);
+    }
+
+    #[test]
+    fn partial_edge_tile_does_not_amplify_single_bright_pixel() {
+        let mut image = RgbImage::from_pixel(33, 33, Rgb([160, 160, 160]));
+        image.put_pixel(32, 32, Rgb([255, 255, 255]));
+
+        let measurement = measure_glare(&image);
+        let expected_tile_fraction = 1.0 / (GLARE_TILE_SIZE * GLARE_TILE_SIZE) as f32;
+        assert!((measurement.peak_tile_fraction - expected_tile_fraction).abs() < f32::EPSILON);
+        assert!(measurement.peak_tile_fraction < 0.01);
+    }
+
+    #[test]
+    fn colored_bright_area_is_not_specular_glare() {
+        let image = RgbImage::from_pixel(64, 64, Rgb([255, 220, 220]));
+        let measurement = measure_glare(&image);
+        assert_eq!(measurement.specular_fraction, 0.0);
+        assert_eq!(measurement.score, 0.0);
+    }
+
+    #[test]
     fn analysis_values_are_normalized() {
         let image = DynamicImage::ImageLuma8(GrayImage::from_pixel(160, 100, Luma([128])));
         let result = analyze_quality(&image);
         assert!((0.0..=1.0).contains(&result.blur.score));
         assert!((0.0..=1.0).contains(&result.exposure.score));
+        assert!((0.0..=1.0).contains(&result.glare.score));
         assert!((0.0..=1.0).contains(&result.card_coverage));
         assert!((0.0..=1.0).contains(&result.detection_confidence));
     }

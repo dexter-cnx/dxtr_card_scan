@@ -313,6 +313,11 @@ Map<String, Object?> _qualityToJsonStatic(
         'darkFraction': quality.exposure.darkFraction,
         'brightFraction': quality.exposure.brightFraction,
       },
+      'glare': <String, double>{
+        'score': quality.glare.score,
+        'specularFraction': quality.glare.specularFraction,
+        'peakTileFraction': quality.glare.peakTileFraction,
+      },
       'cardCoverage': quality.cardCoverage,
       'detectionConfidence': quality.detectionConfidence,
     };
