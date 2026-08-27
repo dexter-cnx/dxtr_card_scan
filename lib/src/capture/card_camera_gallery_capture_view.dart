@@ -101,6 +101,7 @@ class _CardCameraGalleryCaptureViewState
   bool _pickingGallery = false;
   bool _nativeScannerAvailable = false;
   bool _scanningNative = false;
+  int _nativeScanOperation = 0;
   List<String> _nativeScanPaths = const [];
   int _nativeScanIndex = 0;
   Object? _pickerError;
@@ -119,6 +120,9 @@ class _CardCameraGalleryCaptureViewState
     if (!identical(oldWidget.nativeScanner, widget.nativeScanner) ||
         oldWidget.showNativeScannerShortcut !=
             widget.showNativeScannerShortcut) {
+      _nativeScanOperation += 1;
+      _scanningNative = false;
+      _nativeScannerAvailable = false;
       _cancelNativeScan();
       _refreshNativeScannerAvailability();
     }
@@ -198,6 +202,7 @@ class _CardCameraGalleryCaptureViewState
       return;
     }
 
+    final operation = ++_nativeScanOperation;
     setState(() {
       _scanningNative = true;
       _pickerError = null;
@@ -205,7 +210,11 @@ class _CardCameraGalleryCaptureViewState
 
     try {
       final result = await scanner.scan();
-      if (!mounted || !identical(scanner, widget.nativeScanner)) return;
+      if (!mounted ||
+          operation != _nativeScanOperation ||
+          !identical(scanner, widget.nativeScanner)) {
+        return;
+      }
       if (result == null) return;
 
       setState(() {
@@ -214,11 +223,15 @@ class _CardCameraGalleryCaptureViewState
         _gallerySourcePath = result.imagePaths.first;
       });
     } catch (error) {
-      if (mounted && identical(scanner, widget.nativeScanner)) {
+      if (mounted &&
+          operation == _nativeScanOperation &&
+          identical(scanner, widget.nativeScanner)) {
         setState(() => _pickerError = error);
       }
     } finally {
-      if (mounted && identical(scanner, widget.nativeScanner)) {
+      if (mounted &&
+          operation == _nativeScanOperation &&
+          identical(scanner, widget.nativeScanner)) {
         setState(() => _scanningNative = false);
       }
     }
