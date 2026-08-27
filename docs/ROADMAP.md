@@ -85,13 +85,16 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 
 ## 1.0
 - [x] audit current root-barrel public API and define stability tiers
-- [ ] decide root-barrel disposition of low-level live/orchestration exports
-- [ ] add public API compatibility regression suite
-- [ ] document supported advanced API contracts
+- [x] decide root-barrel disposition of low-level live/orchestration exports
+- [x] add public API compatibility regression suite
+- [x] document supported advanced API contracts
+- [ ] declaration-level audit of remaining root-barrel exports
+- [ ] neutral public-name audit
+- [ ] intentional public defaults/constructor audit
 - [ ] stable public API
 - [ ] validated Android/iOS/macOS support
 - [ ] benchmarks
 - [ ] full example app
 - [ ] package documentation
 
-The 1.0 API audit is tracked in `docs/1.0_PUBLIC_API_AUDIT.md`. The package must not mark `stable public API` complete until every currently exported low-level orchestration type has an explicit stability decision and the primary construction paths are covered by compatibility regression tests.
+The primary compatibility surface now lives in `dxtr_card_scan.dart`. Lower-level orchestration is deliberately available through `dxtr_card_scan_advanced.dart`, which re-exports the primary API plus the live session/coordinator/analyzer, stability state machine, package capture pipeline, and feedback-controller layer. `test/public_api_boundary_test.dart` guards this split. The remaining 1.0 API work is a declaration-level audit of the reduced root barrel, naming/default review, and final stability sign-off.
