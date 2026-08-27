@@ -36,4 +36,5 @@ export 'src/processor/card_scan_quality_analysis.dart';
 export 'src/theme/camera_controls_style.dart';
 export 'src/theme/card_scan_theme.dart';
 export 'src/ui/card_corner_feedback_overlay.dart';
+export 'src/ui/card_live_feedback_overlay_layer.dart';
 export 'src/ui/card_scan_labels.dart';
