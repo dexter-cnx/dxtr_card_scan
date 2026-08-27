@@ -1,4 +1,5 @@
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 
 import '../frame/capture_frame.dart';
 import '../frame/capture_frame_style.dart';
@@ -22,6 +23,7 @@ extension CardCaptureProfileViewFactory on CardCaptureProfile {
   /// the caller explicitly supplies an enabled [CardAutoCaptureConfig].
   CardCaptureView captureView({
     required CardCaptureResultCallback onCompleted,
+    Key? key,
     CardCaptureController? controller,
     CaptureFrame frame = const CaptureFrame.id1(),
     CaptureFrameStyle? frameStyle,
@@ -42,6 +44,7 @@ extension CardCaptureProfileViewFactory on CardCaptureProfile {
     void Function()? onClose,
   }) {
     return CardCaptureView(
+      key: key,
       controller: controller,
       frame: frame,
       frameStyle: frameStyle,
