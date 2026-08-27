@@ -192,6 +192,9 @@ class _QualityCard extends StatelessWidget {
             _MetricRow('Mean luma', value.exposure.meanLuma),
             _MetricRow('Dark fraction', value.exposure.darkFraction),
             _MetricRow('Bright fraction', value.exposure.brightFraction),
+            _MetricRow('Glare score', value.glare.score),
+            _MetricRow('Specular fraction', value.glare.specularFraction),
+            _MetricRow('Peak glare tile fraction', value.glare.peakTileFraction),
             _MetricRow('Card coverage', value.cardCoverage),
             _MetricRow('Detection confidence', value.detectionConfidence),
           ],
@@ -244,6 +247,9 @@ original.exposure.score: ${original.exposure.score.toStringAsFixed(4)}
 original.exposure.meanLuma: ${original.exposure.meanLuma.toStringAsFixed(4)}
 original.exposure.darkFraction: ${original.exposure.darkFraction.toStringAsFixed(4)}
 original.exposure.brightFraction: ${original.exposure.brightFraction.toStringAsFixed(4)}
+original.glare.score: ${original.glare.score.toStringAsFixed(4)}
+original.glare.specularFraction: ${original.glare.specularFraction.toStringAsFixed(4)}
+original.glare.peakTileFraction: ${original.glare.peakTileFraction.toStringAsFixed(4)}
 original.cardCoverage: ${original.cardCoverage.toStringAsFixed(4)}
 original.detectionConfidence: ${original.detectionConfidence.toStringAsFixed(4)}
 cropped.blur.score: ${cropped.blur.score.toStringAsFixed(4)}
@@ -252,6 +258,9 @@ cropped.exposure.score: ${cropped.exposure.score.toStringAsFixed(4)}
 cropped.exposure.meanLuma: ${cropped.exposure.meanLuma.toStringAsFixed(4)}
 cropped.exposure.darkFraction: ${cropped.exposure.darkFraction.toStringAsFixed(4)}
 cropped.exposure.brightFraction: ${cropped.exposure.brightFraction.toStringAsFixed(4)}
+cropped.glare.score: ${cropped.glare.score.toStringAsFixed(4)}
+cropped.glare.specularFraction: ${cropped.glare.specularFraction.toStringAsFixed(4)}
+cropped.glare.peakTileFraction: ${cropped.glare.peakTileFraction.toStringAsFixed(4)}
 cropped.cardCoverage: ${cropped.cardCoverage.toStringAsFixed(4)}
 cropped.detectionConfidence: ${cropped.detectionConfidence.toStringAsFixed(4)}''';
 }
