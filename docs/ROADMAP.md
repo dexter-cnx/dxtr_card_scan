@@ -78,8 +78,10 @@ SC-09 introduces named processor presets for `manual`, `ocr`, `fast`, and `archi
 SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` contract rather than coupling the package core to VisionKit, ML Kit, or another platform-specific dependency. `CardNativeScanResult` preserves page order and supports multi-page scans. `CardCameraGalleryCaptureView` queries scanner availability explicitly, exposes the scanner only when available, and feeds each scanned image through the existing `CardGalleryCropView` pipeline in page order. `onCompleted` is emitted once per processed page; closing the source flow cancels the remaining native-scan pages. `scan()` returning null remains a no-op user cancellation, and no second processing pipeline is introduced.
 
 ## 0.5 CardTemplate
-- [ ] named normalized OCR regions
+- [x] named normalized OCR region model + validation
 - [ ] region extraction after perspective correction
+
+`CardTemplate` is pure-Dart metadata over the perspective-corrected card coordinate space. It preserves template-defined region order, rejects empty/duplicate names and zero-area regions, and remains independent from camera, UI, and FFI layers so extraction and OCR integrations can reuse the same contract.
 
 ## 1.0
 - [ ] stable public API
