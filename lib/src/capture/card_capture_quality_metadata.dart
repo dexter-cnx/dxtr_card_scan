@@ -7,7 +7,7 @@ class CardCaptureQualityMetadata {
     required this.quality,
     required this.detection,
     required this.imageAspectRatio,
-  }) : assert(imageAspectRatio > 0 && imageAspectRatio.isFinite);
+  }) : assert(imageAspectRatio > 0);
 
   final CardCaptureQualityAssessment quality;
   final CardScanDetection? detection;
