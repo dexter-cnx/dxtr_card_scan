@@ -19,7 +19,7 @@ export 'src/crop/card_gallery_capture_view.dart';
 export 'src/crop/card_gallery_crop_view.dart';
 export 'src/crop/image_crop_selection.dart';
 export 'src/crop/image_crop_style.dart';
-export 'src/crop/image_crop_view.dart';
+export 'src/crop/image_crop_view.dart' show ImageCropView;
 export 'src/frame/capture_frame.dart';
 export 'src/frame/capture_frame_style.dart';
 export 'src/geometry/camera_geometry_mapper.dart';
