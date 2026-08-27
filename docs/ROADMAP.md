@@ -94,7 +94,7 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 - [x] stable public API
 - [ ] validated Android/iOS/macOS support
 - [x] benchmarks
-- [ ] full example app
+- [x] full example app
 - [ ] package documentation
 
 The primary compatibility surface lives in `dxtr_card_scan.dart`. Lower-level orchestration is deliberately available through `dxtr_card_scan_advanced.dart`, which re-exports the primary API plus the live session/coordinator/analyzer, stability state machine, package capture pipeline, and feedback-controller layer. `test/public_api_boundary_test.dart` guards this split. The final API contract, neutral naming result, and intentional 1.0 defaults are recorded in `docs/1.0_API_STABILITY_SIGNOFF.md`.
@@ -104,3 +104,5 @@ The `stable public API` checkbox covers the Dart API compatibility contract only
 Platform release evidence is tracked in `docs/1.0_PLATFORM_VALIDATION.md`. CI now treats Android and Apple host builds as separate validation jobs; the platform checkbox remains open until the fresh 1.0 physical-device/app validation described there is recorded.
 
 Benchmark methodology and the initial CI reference baseline are recorded in `docs/1.0_BENCHMARKS.md`. The benchmark gate covers a reproducible release-mode harness, CI execution, and a documented baseline; it does not turn GitHub-hosted runner timings into hard performance thresholds.
+
+The 1.0 example now leads with the primary `CardCameraGalleryCaptureView` flow on Android/iOS, uses the built-in OCR processing profile, shows the processed result and source ROI, and keeps standalone camera/gallery demos available for lower-level primary-widget examples. Calibration tooling remains a separate entrypoint and is not part of the normal example flow.
