@@ -37,6 +37,13 @@ class CardTemplate {
           'region names must not be empty',
         );
       }
+      if (name != region.name) {
+        throw ArgumentError.value(
+          region.name,
+          'regions',
+          'region names must not contain surrounding whitespace',
+        );
+      }
       if (!names.add(name)) {
         throw ArgumentError.value(
           region.name,
@@ -44,11 +51,23 @@ class CardTemplate {
           'region names must be unique',
         );
       }
-      if (region.rect.width <= 0 || region.rect.height <= 0) {
+
+      final rect = region.rect;
+      if (!rect.left.isFinite ||
+          !rect.top.isFinite ||
+          !rect.right.isFinite ||
+          !rect.bottom.isFinite ||
+          rect.left < 0 ||
+          rect.top < 0 ||
+          rect.right > 1 ||
+          rect.bottom > 1 ||
+          rect.left >= rect.right ||
+          rect.top >= rect.bottom) {
         throw ArgumentError.value(
-          region.rect,
+          rect,
           'regions',
-          'regions must have non-zero area',
+          'region bounds must be finite and satisfy '
+              '0 <= left < right <= 1 and 0 <= top < bottom <= 1',
         );
       }
     }
