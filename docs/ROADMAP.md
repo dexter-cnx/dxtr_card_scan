@@ -58,7 +58,8 @@
 - [x] SC-07 wire live feedback into `CardCaptureView`
 - [x] SC-08 optional quality metadata contract in `CardCaptureResult`
 - [x] SC-08 snapshot eligible live analysis at shutter time
-- [ ] SC-09 capture profiles (`ocr`, `fast`, `archival`, `manual`)
+- [x] SC-09 capture profile preset contract (`ocr`, `fast`, `archival`, `manual`)
+- [ ] SC-09 wire profiles into `CardCaptureView` with explicit overrides
 - [ ] SC-10 optional native scanner fallback
 
 SC-04 stream contract: raw `CameraImage` planes are never sent directly to Rust encoded-image APIs. `CardLiveCameraSession` owns `startImageStream()` lifecycle, interval gating and one-frame-in-flight backpressure. `CardCaptureView` owns the session, package shutter delegate and SC-02 viewport/frame mapping. Live streaming remains opt-in through an explicit `CardLiveStreamTransformResolver`; unresolved orientation/mirroring states skip analysis rather than guessing. Zoomed live analysis is also skipped until preview-to-stream crop mapping is physically calibrated. Still capture stops streaming before `takePicture()` and keeps it stopped through processing/confirmation, restarting only when the live camera surface is active again.
@@ -70,6 +71,8 @@ SC-06 perspective/alignment analysis is derived from the existing detected quad 
 SC-07 corner feedback is geometry-only. Per-corner confidence combines the detector's existing edge-strength signal with adjacent-edge orthogonality after restoring the exact analyzed ROI aspect ratio. `CardCaptureView` now owns a `CardLiveFeedbackController`, feeds it only accepted live-analysis samples, renders `CardLiveFeedbackOverlayLayer` in the resolved capture frame, and clears feedback whenever live streaming pauses or stops so stale geometry is never shown over still/confirmation states. The feedback path remains advisory-only and does not participate in stability, readiness, or auto-capture decisions.
 
 SC-08 keeps result metadata optional so existing camera/gallery callers remain source-compatible. `CardCaptureQualityMetadata` carries the existing quality assessment, associated detection, and exact analyzed ROI aspect ratio without requiring another native image-analysis pass. `CardCaptureView` freezes the latest eligible accepted live sample immediately before pausing the image stream for shutter dispatch. Live UI/eligibility state can then be cleared without losing the capture snapshot; retake/capture failure clears it, while successful completion attaches it to `CardCaptureResult` and releases it afterward.
+
+SC-09 introduces named processor presets for `manual`, `ocr`, `fast`, and `archival` capture goals. Built-in profiles deliberately leave automatic shutter dispatch disabled; profile selection must not bypass the physical calibration requirements that govern live auto-capture. The follow-up wiring keeps explicit `CardCaptureView` options authoritative so existing callers remain compatible.
 
 ## 0.5 CardTemplate
 - [ ] named normalized OCR regions
