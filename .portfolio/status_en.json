@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "project": {
+    "title": "dxtr_card_scan",
+    "tagline": "A configurable Flutter camera and preprocessing package for document scanning.",
+    "status": "active",
+    "version": null
+  },
+  "summary": {
+    "short": "dxtr_card_scan provides a configurable camera/gallery capture flow for document scanning with orientation-aware framing, theming, flash/torch controls, zoom, and Rust-backed post-processing.",
+    "long": "The package is being calibrated for real devices and supports portrait/landscape constraints, frame alignment and pitch, customizable capture controls, gallery input, edge detection, deskew, optional black-and-white conversion, and resize processing."
+  },
+  "highlights": [
+    "Configurable portrait and landscape capture",
+    "Frame alignment, pitch, and theming",
+    "Flash, torch, zoom, and gallery flows",
+    "Rust-backed post-processing"
+  ],
+  "tech": ["Dart", "Flutter", "Rust", "Camera"],
+  "links": {
+    "repository": "https://github.com/dexter-cnx/dxtr_card_scan",
+    "homepage": null,
+    "package": null,
+    "docs": null,
+    "demo": null
+  },
+  "updatedAt": "2026-08-27T00:00:00Z"
+}
