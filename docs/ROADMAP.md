@@ -100,3 +100,5 @@ SC-10 keeps native document-scanner SDKs behind an injected `CardNativeScanner` 
 The primary compatibility surface lives in `dxtr_card_scan.dart`. Lower-level orchestration is deliberately available through `dxtr_card_scan_advanced.dart`, which re-exports the primary API plus the live session/coordinator/analyzer, stability state machine, package capture pipeline, and feedback-controller layer. `test/public_api_boundary_test.dart` guards this split. The final API contract, neutral naming result, and intentional 1.0 defaults are recorded in `docs/1.0_API_STABILITY_SIGNOFF.md`.
 
 The `stable public API` checkbox covers the Dart API compatibility contract only. Physical calibration evidence, production thresholds, platform validation, benchmarks, example completeness, and package documentation remain separate release gates and are not implied complete by this sign-off.
+
+Platform release evidence is tracked in `docs/1.0_PLATFORM_VALIDATION.md`. CI now treats Android and Apple host builds as separate validation jobs; the platform checkbox remains open until the fresh 1.0 physical-device/app validation described there is recorded.
