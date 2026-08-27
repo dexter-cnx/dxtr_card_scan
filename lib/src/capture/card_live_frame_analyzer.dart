@@ -41,6 +41,7 @@ CardLiveAnalysisSample _analyzeLiveFrame(
   CardCaptureQualityThresholds thresholds,
 ) {
   const adapter = CardCameraImageAdapter();
+  final imageAspectRatio = adapter.roiAspectRatio(frame, rawFrameRoi);
   final encoded = adapter.encodeJpeg(
     frame,
     roi: rawFrameRoi,
@@ -55,5 +56,6 @@ CardLiveAnalysisSample _analyzeLiveFrame(
       thresholds: thresholds,
     ),
     detection: frameAnalysis.detection,
+    imageAspectRatio: imageAspectRatio,
   );
 }
