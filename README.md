@@ -120,7 +120,7 @@ final template = CardTemplate(
   regions: const [
     CardTemplateRegion(
       name: 'name',
-      bounds: NormalizedRect(
+      rect: NormalizedRect(
         left: .30,
         top: .20,
         right: .90,
