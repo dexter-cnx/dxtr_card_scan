@@ -33,6 +33,49 @@ The repository currently keeps `publish_to: none`; use the Git dependency until 
 
 Minimum SDKs are Dart `>=3.4.0 <4.0.0` and Flutter `>=3.22.0`.
 
+### Native build prerequisite
+
+The package builds its Rust processor as part of the Android, iOS, and macOS host build. Install Rust through `rustup` on every workstation or CI runner that builds an application using this package:
+
+```sh
+rustup toolchain install stable
+rustup default stable
+cargo --version
+rustup --version
+```
+
+You do not need to add the platform Rust targets manually. The package build scripts call `rustup target add` for the active Android ABI or Apple architecture before running `cargo build --release`.
+
+Android builds currently map the active ABI to one of `aarch64-linux-android`, `armv7-linux-androideabi`, or `x86_64-linux-android`. Apple builds select the matching iOS device/simulator or macOS Rust target from the Xcode platform and architecture.
+
+## Host platform setup
+
+The capture and gallery surfaces still require the normal host permissions used by Flutter's camera/gallery integrations.
+
+### iOS
+
+Add these keys to `ios/Runner/Info.plist` with application-appropriate messages:
+
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Capture cards for scanning.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Choose card images for scanning.</string>
+```
+
+`NSCameraUsageDescription` is required when using camera capture. `NSPhotoLibraryUsageDescription` is required by the documented gallery flow.
+
+### macOS
+
+The standard macOS example is Gallery-only. For a sandboxed app that opens user-selected image files, enable the user-selected-file read entitlement in both `macos/Runner/DebugProfile.entitlements` and `macos/Runner/Release.entitlements`:
+
+```xml
+<key>com.apple.security.files.user-selected.read-only</key>
+<true/>
+```
+
+The package does not currently claim a macOS camera flow.
+
 ## Recommended integration
 
 For most applications, start with the primary barrel:
